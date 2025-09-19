@@ -30,7 +30,9 @@ export default function Register() {
       setLocation('/dashboard');
       toast({
         title: "Registration successful",
-        description: "Welcome to Logicwerk!",
+        description: formData.role === 'supplier' 
+          ? "Welcome to Logicwerk! Please complete your profile to start receiving RFQ invitations."
+          : "Welcome to Logicwerk!",
       });
     } catch (error) {
       toast({

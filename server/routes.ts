@@ -732,6 +732,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Profile completion status endpoint
+  app.get("/api/protected/suppliers/profile-completion", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user!.companyId) {
+        return res.status(400).json({ error: "Company required" });
+      }
+
+      // Get company information
+      const company = await storage.getCompany(req.user!.companyId);
+      if (!company) {
+        return res.status(404).json({ error: "Company not found" });
+      }
+
+      // Get supplier profile
+      const supplierProfile = await storage.getSupplierProfile(req.user!.companyId);
+      
+      // Get uploaded documents
+      const documents = await storage.getDocumentsByCompany(req.user!.companyId);
+      
+      // Required document types for verification
+      const requiredDocTypes = [
+        'company_registration',
+        'gst_certificate', 
+        'bank_statement'
+      ];
+      
+      // Check completion status for each step
+      const steps = {
+        companyInfo: {
+          completed: !!(company.name && company.city && company.state && company.address),
+          label: "Company Information",
+          description: "Basic company details and address"
+        },
+        supplierProfile: {
+          completed: !!(supplierProfile && supplierProfile.capabilities && supplierProfile.moqDefault),
+          label: "Supplier Profile", 
+          description: "Capabilities, MOQ, and certifications"
+        },
+        documentUpload: {
+          completed: requiredDocTypes.every(docType => 
+            documents.some(doc => doc.docType === docType)
+          ),
+          label: "Document Upload",
+          description: "Required verification documents",
+          uploadedDocs: documents.map(doc => doc.docType),
+          requiredDocs: requiredDocTypes
+        },
+        verification: {
+          completed: supplierProfile?.verifiedStatus !== 'unverified',
+          label: "Verification Pending",
+          description: "Admin review and approval",
+          status: supplierProfile?.verifiedStatus || 'unverified'
+        }
+      };
+
+      // Calculate overall completion percentage
+      const completedSteps = Object.values(steps).filter(step => step.completed).length;
+      const totalSteps = Object.keys(steps).length;
+      const completionPercentage = Math.round((completedSteps / totalSteps) * 100);
+      
+      // Determine if profile is fully complete (all steps except verification)
+      const profileComplete = steps.companyInfo.completed && 
+                             steps.supplierProfile.completed && 
+                             steps.documentUpload.completed;
+      
+      // Determine if supplier should see onboarding prompt
+      const shouldShowPrompt = !profileComplete || steps.verification.status === 'unverified';
+
+      res.json({
+        steps,
+        completionPercentage,
+        profileComplete,
+        shouldShowPrompt,
+        verificationStatus: steps.verification.status,
+        nextAction: !steps.companyInfo.completed ? 'complete_company_info' :
+                   !steps.supplierProfile.completed ? 'complete_profile' :
+                   !steps.documentUpload.completed ? 'upload_documents' :
+                   'await_verification'
+      });
+    } catch (error) {
+      console.error('Profile completion check error:', error);
+      res.status(500).json({ error: "Failed to check profile completion status" });
+    }
+  });
+
   // Order routes
   app.get("/api/protected/orders", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
