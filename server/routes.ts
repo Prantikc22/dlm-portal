@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
-import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, supplierVerificationEnum } from "@shared/schema";
+import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, insertNotificationSchema, supplierVerificationEnum } from "@shared/schema";
 import { z } from "zod";
 import { ZodError } from "zod";
 
@@ -177,7 +177,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
       
-      const response = { 
+      const response: { 
+        user: { id: string; email: string; role: string; companyId: string | null; };
+        token?: string;
+      } = { 
         user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId }
       };
       
@@ -229,7 +232,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
       
-      const response = { 
+      const response: { 
+        user: { id: string; email: string; role: string; companyId: string | null; };
+        token?: string;
+      } = { 
         user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId }
       };
       
@@ -740,6 +746,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(orders);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/protected/notifications", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const notifications = await storage.getNotificationsByUser(req.user!.id);
+      res.json(notifications);
+    } catch (error) {
+      console.error('Fetch notifications error:', error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.get("/api/protected/notifications/count", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const count = await storage.getUnreadNotificationCount(req.user!.id);
+      res.json({ unreadCount: count });
+    } catch (error) {
+      console.error('Fetch notification count error:', error);
+      res.status(500).json({ error: "Failed to fetch notification count" });
+    }
+  });
+
+  app.put("/api/protected/notifications/:id/read", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.markNotificationAsRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark notification as read error:', error);
+      res.status(500).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  app.put("/api/protected/notifications/read-all", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.markAllNotificationsAsRead(req.user!.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark all notifications as read error:', error);
+      res.status(500).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
+
+  app.post("/api/protected/notifications", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const notificationData = insertNotificationSchema.parse(req.body);
+      const notification = await storage.createNotification(notificationData);
+      res.json(notification);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid notification data", details: error.errors });
+      }
+      console.error('Create notification error:', error);
+      res.status(500).json({ error: "Failed to create notification" });
     }
   });
 

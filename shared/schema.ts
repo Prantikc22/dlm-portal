@@ -18,6 +18,12 @@ export const orderStatusEnum = pgEnum("order_status", [
 export const payoutStatusEnum = pgEnum("payout_status", ["pending", "paid", "failed"]);
 export const inspectionStatusEnum = pgEnum("inspection_status", ["pass", "fail"]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["open", "in_progress", "resolved"]);
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "rfq_submitted", "rfq_approved", "rfq_status_change", "quote_received", 
+  "quote_accepted", "quote_rejected", "supplier_invitation", "supplier_verified",
+  "order_created", "order_status_change", "production_update", "inspection_completed",
+  "payout_processed", "general"
+]);
 
 // Core tables
 export const users = pgTable("users", {
@@ -207,6 +213,19 @@ export const tickets = pgTable("tickets", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false),
+  metadata: jsonb("metadata"),
+  entityId: uuid("entity_id"),
+  entityType: text("entity_type"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -270,6 +289,7 @@ export type Payout = typeof payouts.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Ticket = typeof tickets.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
@@ -281,6 +301,11 @@ export const insertCuratedOfferSchema = createInsertSchema(curatedOffers).omit({
   publishedAt: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -289,3 +314,4 @@ export type InsertRFQ = z.infer<typeof insertRFQSchema>;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertCuratedOffer = z.infer<typeof insertCuratedOfferSchema>;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;

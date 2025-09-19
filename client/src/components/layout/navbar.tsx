@@ -2,6 +2,7 @@ import { Bell, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'wouter';
+import { NotificationDropdown } from './notification-dropdown';
 
 interface NavbarProps {
   onTabChange?: (tab: string) => void;
@@ -60,19 +61,7 @@ export function Navbar({ onTabChange, activeTab }: NavbarProps) {
             )}
           </div>
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Button
-                variant="secondary"
-                size="sm"
-                className="relative"
-                data-testid="button-notifications"
-              >
-                <Bell className="h-4 w-4 mr-2" />
-                <span className="bg-destructive text-destructive-foreground text-xs rounded-full px-2 py-1 ml-1">
-                  3
-                </span>
-              </Button>
-            </div>
+            <NotificationDropdown />
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
                 <span data-testid="text-user-initials">{getInitials(user?.name || undefined)}</span>

@@ -3,11 +3,11 @@ import postgres from "postgres";
 import { eq, and, desc, like, inArray, sql, gte } from "drizzle-orm";
 import { 
   users, companies, supplierProfiles, skus, rfqs, rfqItems, 
-  supplierInvites, quotes, curatedOffers, orders, documents,
+  supplierInvites, quotes, curatedOffers, orders, documents, notifications,
   type User, type Company, type SupplierProfile, type SKU, type RFQ, 
-  type Quote, type CuratedOffer, type Order, type Document,
+  type Quote, type CuratedOffer, type Order, type Document, type Notification,
   type InsertUser, type InsertCompany, type InsertSupplierProfile, 
-  type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer
+  type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer, type InsertNotification
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
@@ -19,6 +19,7 @@ class InMemoryStorage implements IStorage {
   private supplierProfiles: SupplierProfile[] = [];
   private supplierInvites: any[] = [];
   private documents: Document[] = [];
+  private notifications: Notification[] = [];
   private skus: SKU[] = [
     // Mechanical Manufacturing Industry
     {
@@ -530,6 +531,51 @@ class InMemoryStorage implements IStorage {
       offer.publishedAt = new Date();
     }
   }
+
+  // Notification methods
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const newNotification: Notification = {
+      id: randomUUID(),
+      userId: notification.userId,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      isRead: notification.isRead || false,
+      metadata: notification.metadata || null,
+      entityId: notification.entityId || null,
+      entityType: notification.entityType || null,
+      createdAt: new Date(),
+    };
+    this.notifications.push(newNotification);
+    return newNotification;
+  }
+
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return this.notifications
+      .filter(n => n.userId === userId)
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      });
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    return this.notifications.filter(n => n.userId === userId && !n.isRead).length;
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    const notification = this.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.isRead = true;
+    }
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    this.notifications
+      .filter(n => n.userId === userId && !n.isRead)
+      .forEach(n => n.isRead = true);
+  }
 }
 
 // Database connection setup  
@@ -611,6 +657,13 @@ export interface IStorage {
   createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer>;
   getCuratedOffers(): Promise<Array<CuratedOffer & { rfq: RFQ }>>;
   publishCuratedOffer(offerId: string): Promise<void>;
+
+  // Notification management
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getNotificationsByUser(userId: string): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  markNotificationAsRead(notificationId: string): Promise<void>;
+  markAllNotificationsAsRead(userId: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -867,6 +920,38 @@ export class SupabaseStorage implements IStorage {
       publishedAt: new Date() 
     }).where(eq(curatedOffers.id, offerId));
   }
+
+  // Notification methods
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const result = await db.insert(notifications).values(notification).returning();
+    return result[0];
+  }
+
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return await db.select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return Number(result[0]?.count || 0);
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, notificationId));
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  }
 }
 
 // Wrapper storage that falls back to in-memory when database operations fail
@@ -1033,6 +1118,27 @@ class FallbackStorage implements IStorage {
 
   async publishCuratedOffer(offerId: string): Promise<void> {
     return this.withFallback(async (storage) => storage.publishCuratedOffer(offerId));
+  }
+
+  // Notification methods
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    return this.withFallback(async (storage) => storage.createNotification(notification));
+  }
+
+  async getNotificationsByUser(userId: string): Promise<Notification[]> {
+    return this.withFallback(async (storage) => storage.getNotificationsByUser(userId));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    return this.withFallback(async (storage) => storage.getUnreadNotificationCount(userId));
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.markNotificationAsRead(notificationId));
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.markAllNotificationsAsRead(userId));
   }
 }
 
