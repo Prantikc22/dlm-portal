@@ -1,4 +1,8 @@
-// Simple HTTP client for API calls
+// Note: According to the Supabase blueprint, we should use Drizzle directly
+// instead of @supabase/supabase-js for database operations.
+// The authentication is handled by the backend API.
+
+// Simple HTTP client for API calls (keeping for backward compatibility)
 export const apiClient = {
   get: async (url: string, headers: Record<string, string> = {}) => {
     const response = await fetch(url, {
