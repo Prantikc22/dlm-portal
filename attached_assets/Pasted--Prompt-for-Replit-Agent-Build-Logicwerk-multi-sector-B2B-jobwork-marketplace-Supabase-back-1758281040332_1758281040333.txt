@@ -1,0 +1,504 @@
+# Prompt for Replit Agent — Build **Logicwerk**: multi-sector B2B jobwork marketplace (Supabase backend) — **production ready**
+
+Use this entire block as the single spec. Build a production-ready web app (responsive) with Buyer-first UX, Supplier and Admin portals, Supabase for Auth/DB/Storage, and payments (Razorpay). Deliver code, DB migrations, deployment config, tests, docs, and a staging URL. Don’t ask the client clarifying questions — follow the spec exactly and propose any reasonable implementation choices in your first reply (architecture diagram, Supabase SQL, milestone plan, staging URL after Milestone 1, and an estimate of days per milestone).
+
+---
+
+# 1 — Project goal (one sentence)
+
+Build a secure, production-ready, Buyer-first multi-sector B2B jobwork marketplace where Buyers submit RFQs (Industry → Process → Configurator), Suppliers sign up and respond to admin-invited RFQs, and Admins mediate the marketplace end-to-end (matching, offers, orders, escrow, payouts). Buyers must **never** see supplier contact details or direct supplier lists.
+
+---
+
+# 2 — Non-negotiable constraints & principles
+
+* **Buyer default**: public site and flows assume Buyer by default.
+* **Supplier identities hidden**: Buyers never see supplier names/contact info; they see Logicwerk offers only.
+* **Admin as middleman**: Admin invites suppliers / composes offers / manages payouts / communications.
+* **Supabase**: Use Supabase for Auth, Postgres, Storage, Edge Functions (or serverless) for webhooks and server logic. All db migrations, RLS policies, and SQL must be delivered.
+* **Security & privacy first**: RLS must enforce role separation; signed URLs for files; PII masked.
+* **Production ready**: CI/CD, environment configs, staging + prod deployable, monitoring, backups, basic load considerations.
+* **Do not implement any feature that exposes suppliers to buyers off-platform.** Use contract terms and technical enforcement.
+
+---
+
+# 3 — Tech stack (recommended, but you may propose alternatives)
+
+* Frontend: **Next.js (TypeScript)**, Tailwind CSS, React Query (or SWR)
+* Backend: **Supabase** (Postgres + Auth + Storage + Edge Functions). Use Node/TypeScript serverless functions only where required (webhooks, complex matching) — prefer Supabase Edge Functions.
+* Payments: **Razorpay** (India) — use Route/Marketplace style if available; sandbox for dev. Provide Stripe Connect fallback option.
+* CAD viewer: optional (deliver basic viewer integration later — not required for MVP); store files in Supabase Storage.
+* Deployment: Vercel or Render for frontend; Supabase managed for backend. CI: GitHub Actions (or Replit Deploy).
+* Monitoring: Sentry (errors), Prometheus/Datadog or simple uptime checks.
+* Tests: E2E (Playwright or Cypress) + unit tests for core logic.
+
+---
+
+# 4 — Delivered artifacts (what you must hand over)
+
+* Full source code repos (frontend, edge functions), with clear README and setup.
+* Supabase SQL migrations and seed scripts (including full SKU seeds).
+* RLS policy SQL and example role setup.
+* OpenAPI / Postman collection for APIs.
+* Staging URL for Milestone 1 + instructions to deploy to production.
+* Acceptance test scripts and reports.
+* Admin manual and quick user guides (buyers & suppliers).
+* 2 weeks bugfix support after handover (state SLA in first reply).
+
+---
+
+# 5 — High-level user roles & auth
+
+* **Buyer** (default signup) — can create RFQs, view offers, accept offers and pay, view orders & invoices.
+* **Supplier** — signup + onboarding, complete profile + docs; can view only RFQs they are invited to and submit quotes. Supplier contact details stored but only accessible to Admin and masked in DB for everyone else. Supplier actions limited by RLS.
+* **Admin** (ops, sales) — full access to RFQs, suppliers, quotes, offers, payments, orders, verification workflows. Allow role subtypes: ops, sales if needed.
+* Auth via Supabase Auth (email/password + magic link). Provide optional Google/LinkedIn SSO.
+
+---
+
+# 6 — UX / main pages & flows (must implement exactly)
+
+## Public / Landing
+
+* Hero focused on buyers: “I’m Buying — Request quotes in 24–48 hrs” (primary CTA). Secondary CTA: “I’m a Supplier — Join in 2 minutes”.
+* Industry tiles, brief “How it works” (3 steps), footer (Terms, Privacy, Contact).
+
+## Buyer flows
+
+* **Signup/Login** (default).
+* **Buyer Dashboard**: Quick “Create RFQ” CTA, recent RFQs, active orders.
+* **RFQ Wizard** (Industry → Process → Configurator): multi-item RFQs allowed. See Configurator spec (section 7).
+* **RFQ Details**: status timeline, files, NDA status, confidentiality toggles.
+* **Offers View**: When admin publishes offers, buyer sees up to 3 curated offers (Standard / Premium / Fast). Offer displays price, lead time, QA included, warranty, terms, and “Fulfilled by Logicwerk Marketplace” tag (no supplier names). Buyer can Accept Offer → Pay Deposit.
+* **Orders**: Order details, status timeline, inspection reports, invoices, download POs.
+* **Payments**: Razorpay integration for deposit and final payments; show escrow status.
+* **Support**: Ticket submission UI.
+
+## Supplier flows
+
+* **Supplier Signup / Onboarding Wizard**: company name, GSTIN, PAN (optional), address, contact (phone/email — stored but admin-only), capability checklist (see capability mapping), machines list, typical MOQs, upload docs (ISO, sample pics), bank details (masked).
+* **Supplier Dashboard**: invited RFQs list, quote submission UI, orders assigned, payouts (history). Suppliers cannot see buyer identity beyond anonymized RFQ fields unless admin allows.
+* **Quote Submission**: per RFQ item price break-down, tooling costs, lead time, attachments, sample availability and lead.
+
+## Admin flows
+
+* **Admin Dashboard**: RFQ inbox, supplier search/filters, matching suggestions, supplier invites, quote aggregation, offer composer, order manager, verification queue, payments & payouts management, analytics.
+* **Offer Composer**: admins create Platform Offers from supplier quotes (anonymized). Publish offers to buyer.
+* **Order Management**: change status, schedule inspection, resolve disputes, record supplier payouts (manual or API).
+* **Supplier Verification**: review uploaded docs, mark Bronze/Silver/Gold badges, attach audit reports.
+* **RLS & Access Controls** admin UI.
+
+---
+
+# 7 — Configurator: **Industry → Process → full parameter list** (implement exactly)
+
+Buyer starts: pick Industry tile, then Process card. Each Process card must show: name, short description, default MOQ, default lead time, typical tolerance. After selection, open Configurator stepper. Multi-item RFQ supported.
+
+## Top-level Industry list (exact)
+
+1. Mechanical Manufacturing
+2. Electronics & Electrical
+3. Packaging & Printing
+4. Textile & Leather
+5. Construction & Infrastructure
+
+## Processes (SKUs) — implement these exact SKUs with codes (seed `skus` table). Each SKU must include `parameters_schema` JSON used to validate RFQ inputs server-side.
+
+### Mechanical Manufacturing (skus)
+
+* `cnc_machining` — CNC Machining (Turning / Milling / 5-axis)
+* `sheet_metal` — Sheet Metal Fabrication (laser/punch/bend/weld)
+* `injection_molding` — Injection Molding (soft/hard tooling)
+* `die_casting` — Die Casting (Al/Zn/Mg)
+* `forging` — Forging (open/closed die, ring rolling)
+* `extrusion` — Extrusion (aluminium & plastic profiles)
+* `3d_printing` — 3D Printing (FDM/SLA/SLS/DMLS)
+* `tooling_development` — Tooling (molds, dies, jigs, fixtures)
+* `assembly_kitting` — Assembly & Kitting
+
+### Electronics & Electrical
+
+* `pcb_prototyping` — PCB Prototyping (fast-turn)
+* `pcb_assembly` — PCB Assembly (SMT / Through-hole)
+* `cable_harness` — Cable Harness Assembly
+* `box_build` — Box Build / Enclosure Assembly
+* `battery_pack` — Battery Pack Assembly
+* `electronic_testing` — Testing & QA (ICT, AOI, functional, burn-in)
+
+### Packaging & Printing
+
+* `corrugated_boxes` — Corrugated Boxes
+* `carton_packaging` — Carton Packaging (printed)
+* `labels_stickers` — Labels & Stickers
+* `flexible_packaging` — Flexible Packaging (pouches, laminates)
+* `rigid_packaging` — Rigid Packaging (tins, rigid boxes)
+* `foam_protective` — Foam & Protective Packaging
+* `biodegradable_packaging` — Biodegradable / Eco Packaging
+
+### Textile & Leather
+
+* `cut_and_sew` — Cut & Sew Jobwork (garments, uniforms)
+* `embroidery_printing` — Embroidery & Printing (screen, digital)
+* `knitting_weaving` — Knitting & Weaving Jobwork
+* `leather_goods` — Leather Goods Manufacturing (bags, belts, wallets)
+* `upholstery` — Upholstery Jobwork (automotive & furniture)
+
+### Construction & Infrastructure
+
+* `structural_steel` — Structural Steel Fabrication
+* `prefab_modules` — Prefab Modules (site cabins, sheds)
+* `metal_joinery` — Metal Joinery & Welding Jobwork
+* `carpentry_woodwork` — Carpentry & Woodwork
+* `stone_tile` — Stone & Tile Cutting / Polishing
+* `precast_concrete` — Precast Concrete Components
+* `facade_glass_aluminium` — Glass & Aluminium Facade Fabrication
+
+### Cross-Sector Add-Ons (selectable in configurator)
+
+* finishing types: anodize, powder\_coat, electroplate, painting, heat\_treat, polishing
+* QA options: basic\_dimensional, advanced\_cmm, lab\_tests, material\_cert
+* logistics: domestic\_ddp, export\_ddp, express\_shipping
+* inventory: vmi\_subscription
+* tooling\_support: tooling\_quote\_required
+
+> **Important:** The `skus` table must be pre-seeded with these codes, names, descriptions, default\_moq and default\_lead\_time\_days, and a `parameters_schema` JSON for server validation.
+
+---
+
+# 8 — Configurator stepper fields (exact form schema)
+
+For every RFQ item implement the following steps (server-validated):
+
+**Step 1 — Basics**
+
+* `item_title` (string, required)
+* `process` (sku code, required)
+* `quantity` (integer, required)
+* `unit` (enum: pcs, sets, meters, sqm, kg)
+* `target_delivery_date` (date) OR `lead_time_days` (int) — at least one required
+* `priority` (enum: standard, premium, fast\_track)
+
+**Step 2 — Files & Geometry**
+
+* `cad_files` (array of file refs — allowed types: STEP/IGES/STL/DWG/DXF/ZIP/PDF) — required for mechanical/electronics/tooling; optional elsewhere
+* `bom_file` (CSV/XLSX) optional
+* `item_dimensions` object (length, width, height, diameter, units) — if no CAD
+
+**Step 3 — Material & Specs**
+
+* `material` (string enum list depends on process — e.g., Aluminium, SS304, ABS, PP, PVC, Leather types, Paper grades)
+* `material_grade` (optional string)
+* `tolerance` (string or numeric)
+* `surface_finish` (multi-select add-on list)
+* `special_requirements` (text) — e.g., certifications, RoHS, UL
+
+**Step 4 — Tooling & Samples**
+
+* `tooling_required` (bool) — if true require `tooling_scope_description` and `expected_runs`
+* `sample_required` (bool) — if true include `sample_qty` and `sample_deadline`
+
+**Step 5 — Add-ons**
+
+* `inspection` (enum: none, basic, advanced, lab\_test)
+* `packaging` (enum: standard, custom\_printed, protective\_foam)
+* `logistics` (object: pickup\_pincode, delivery\_country, incoterm)
+* `vmi` (object: storage\_duration\_days, reorder\_point, safety\_stock)
+
+**Step 6 — Commercial**
+
+* `target_unit_price` (number, optional)
+* `budget_range` (min, max) optional
+* `nda_required` (bool)
+* `confidential` (bool) — hide buyer identity to suppliers
+
+**Step 7 — Review & Submit**
+
+* Show summary, T\&C checkbox, anti-disintermediation acknowledgement. On submit create RFQ.
+
+> Server must validate using the `parameters_schema` field from the selected SKU.
+
+---
+
+# 9 — DB schema (core tables) — implement and deliver SQL migrations
+
+Create these tables (snake\_case). Each table must include `created_at`, `updated_at`, `created_by`, `updated_by` where relevant.
+
+**users**
+
+* id uuid PK, email text unique, role enum('buyer','supplier','admin'), name, company\_id uuid, phone, is\_verified bool, metadata jsonb, created\_at, updated\_at
+
+**companies**
+
+* id uuid PK, name, gstin, pan, address jsonb, city, state, country, documents jsonb, created\_at, updated\_at
+
+**supplier\_profiles**
+
+* id uuid, company\_id uuid FK, capabilities jsonb, machines jsonb, moq\_default int, capacity\_calendar jsonb, certifications jsonb, verified\_status enum('unverified','bronze','silver','gold'), bank\_details jsonb (masked), created\_at, updated\_at
+
+**skus**
+
+* id uuid, code text unique (see list above), industry text, process\_name text, description text, default\_moq int, default\_lead\_time\_days int, parameters\_schema jsonb, active bool, created\_at, updated\_at
+
+**rfqs**
+
+* id uuid PK, rfq\_number text unique, buyer\_id uuid FK, title text, status enum('draft','submitted','under\_review','invited','offers\_published','accepted','in\_production','inspection','shipped','delivered','closed','cancelled'), details jsonb (full RFQ JSON), files jsonb, nda\_required bool, confidential bool, budget\_range jsonb, created\_at, updated\_at
+
+**rfq\_items**
+
+* id uuid, rfq\_id uuid FK, item\_ref text, sku\_code text FK skus.code, item\_details jsonb, created\_at
+
+**supplier\_invites**
+
+* id uuid, rfq\_id uuid, supplier\_id uuid, invited\_by uuid, invited\_at timestamptz, status enum('invited','responded','declined'), response\_deadline timestamptz
+
+**quotes**
+
+* id uuid, rfq\_id uuid, supplier\_id uuid, quote\_json jsonb (price\_breakdown etc.), status enum('draft','submitted','accepted','rejected'), created\_at
+
+**curated\_offers**
+
+* id uuid, rfq\_id uuid, admin\_id uuid, title text (Standard/Premium/Fast), details jsonb, total\_price numeric, supplier\_indicators jsonb (no supplier ids), published\_at timestamptz, expires\_at timestamptz
+
+**orders**
+
+* id uuid, order\_number text unique, rfq\_id uuid, curated\_offer\_id uuid, buyer\_id uuid, admin\_id uuid, supplier\_id uuid (winning supplier), status enum('created','deposit\_paid','production','inspection','shipped','delivered','closed','cancelled'), deposit\_percent int, deposit\_paid bool, total\_amount numeric, escrow\_tx\_ref text, created\_at, updated\_at
+
+**production\_updates**
+
+* id uuid, order\_id uuid, stage text, detail text, updated\_by uuid, created\_at
+
+**inspections**
+
+* id uuid, order\_id uuid, inspector\_id uuid, report\_ref text, status enum('pass','fail'), notes text, created\_at
+
+**payouts**
+
+* id uuid, order\_id uuid, supplier\_id uuid, amount numeric, fees numeric, status enum('pending','paid','failed'), paid\_at timestamptz
+
+**documents**
+
+* id uuid, company\_id uuid, doc\_type text, file\_ref text, metadata jsonb, uploaded\_by uuid, uploaded\_at timestamptz
+
+**audit\_logs**
+
+* id uuid, entity\_type text, entity\_id uuid, action text, user\_id uuid, metadata jsonb, created\_at
+
+**tickets**
+
+* id uuid, ref text, user\_id uuid, subject text, status enum('open','in\_progress','resolved'), messages jsonb, created\_at
+
+Add GIN indexes on JSONB fields frequently queried (supplier\_profiles.capabilities, skus.parameters\_schema, rfqs.details). Add indexes on rfq\_number, order\_number, rfqs.status.
+
+---
+
+# 10 — RLS policies (must deliver SQL scripts)
+
+Implement RLS on sensitive tables (rfqs, rfq\_items, quotes, supplier\_profiles, documents, orders). At minimum:
+
+**buyers**
+
+* Can insert RFQs and read RFQs where buyer\_id = auth.uid().
+* Can read orders where buyer\_id = auth.uid().
+
+**suppliers**
+
+* Can read supplier\_profiles where company\_id = user.company\_id.
+* Can read supplier\_invites where supplier\_id = their supplier\_id.
+* Can insert quotes where supplier\_id = their supplier\_id and supplier\_invites.status = 'invited'.
+
+**admins**
+
+* Full access (role check via auth claims).
+
+**documents**
+
+* Only admin or owning company (company\_id) or authorized invitees (supplier invited to the RFQ) may access via signed URL. Enforce NDA gating.
+
+Provide full SQL policy scripts and example role setup commands.
+
+---
+
+# 11 — API endpoints (minimal set — implement REST or GraphQL)
+
+Provide routes with example request/response shapes, authentication, and role checks.
+
+**Auth (Supabase handles)**
+
+* POST /auth/signup — Supabase
+* POST /auth/login — Supabase
+
+**Catalog & SKUs**
+
+* GET /api/skus — list active SKUs and metadata (public)
+* GET /api/skus/\:code — SKU details & parameters\_schema
+
+**RFQs**
+
+* POST /api/rfqs — create RFQ (buyer)
+* GET /api/rfqs — buyer: list own; admin: list all; supplier: list invited only
+* GET /api/rfqs/\:id — view RFQ (role filtered; supplier sees anonymized unless invited)
+* POST /api/rfqs/\:id/files — upload files (signed URL)
+
+**Supplier**
+
+* POST /api/suppliers/signup — supplier onboarding details saved to company + supplier\_profiles
+* GET /api/suppliers/\:id/invites — list invites (supplier only)
+* POST /api/quotes — create quote (supplier; allowed only if invited)
+
+**Admin**
+
+* POST /api/admin/invite — invite supplier(s) to RFQ (send email)
+* POST /api/admin/curated\_offers — create & publish offers to buyer
+* POST /api/admin/orders — create order from offer
+* POST /api/admin/orders/\:id/update\_status — update order production status
+* POST /api/admin/payouts — record or trigger payout
+
+**Payments**
+
+* POST /api/payments/create\_order — create Razorpay order for deposit (server side)
+* POST /api/webhooks/payments — handle Razorpay webhook (idempotent)
+
+**Files**
+
+* GET /api/files/signed\_url?file=... — return signed url for authorized user (Edge Function / signed policy)
+
+Add OpenAPI/Swagger doc generation.
+
+---
+
+# 12 — Payment & escrow flow (detailed)
+
+* Default deposit percent configurable (default 30%).
+* Buyer accepts curated offer → frontend calls `/api/payments/create_order` → server (edge function) creates Razorpay order (amount = deposit percent \* total) and returns order details for client checkout.
+* On successful payment, Razorpay webhook calls `/api/webhooks/payments` → verify signature, mark `orders.deposit_paid = true`, create escrow\_tx\_ref. Notify admin.
+* Admin issues PO to supplier and sets order status = `production`.
+* On production completion + inspection pass, admin marks `orders.status = delivered` and triggers payout record. Payout to supplier executed offline initially (admin records payout in system). Implement automatic payouts via Razorpay Route or Stripe Connect if available — optional for MVP.
+* Support refunds & disputes flow: when inspection fails, hold funds, create ticket, admin resolution required.
+
+---
+
+# 13 — Files, CAD handling & NDA gating
+
+* Allowed types: STEP/STP/IGES/STL/OBJ/DWG/DXF/PDF/ZIP/CSV/XLSX. Max 200MB per file (configurable). Virus scan on upload (at least basic check).
+* Files stored private in Supabase Storage; generate short-lived signed URLs per user role and per RFQ invitation.
+* If `nda_required` = true for RFQ, supplier must accept NDA electronically (signature or checkbox & timestamp) before signed URL is generated for that supplier.
+
+---
+
+# 14 — Matching & admin tools
+
+* Admin UI must include a **supplier matcher** that returns top N suppliers with a matching score based on:
+
+  * Process & material capability (required)
+  * Tolerance and size feasibility
+  * Capacity/calendar availability (if present)
+  * Certifications (if required)
+  * Proximity (optional)
+  * Verified badge level
+* Allow admin to filter & sort and then **select suppliers to invite**. Invitations are emailed with a secure link (supplier must be logged in to access the RFQ).
+
+---
+
+# 15 — Security & compliance
+
+* Enforce RLS as above and provide SQL.
+* All secrets stored in environment variables; do not expose in repo.
+* TLS everywhere.
+* Audit logs for critical actions.
+* Mask bank details in DB (store only last 4 digits in admin view).
+* Data retention policy for files (configurable).
+* Implement rate limits for sensitive endpoints.
+* Provide basic privacy policy text and T\&Cs covering disintermediation ban.
+
+---
+
+# 16 — Seed data (must pre-seed the DB)
+
+* Insert all SKUs listed in Section 7 with default\_moq and default\_lead\_time\_days and parameters\_schema stubs.
+* Insert example admin user, 2 buyer test accounts, 3 supplier test companies (with capabilities covering CNC, Injection, PCB, Packaging, Textile, Prefab steel) and verify one supplier as Gold (documents uploaded).
+* Insert sample RFQ and supplier quote flows for E2E testing.
+
+---
+
+# 17 — Acceptance tests (deliver E2E)
+
+Provide automated E2E tests covering (minimum):
+
+1. Buyer signup → create RFQ with CAD upload → admin notified.
+2. Admin invites supplier → supplier logs in → sees invite → submits quote.
+3. Admin composes curated offers → publishes to buyer → buyer accepts → pays deposit via Razorpay sandbox → order moves to `deposit_paid`.
+4. Admin marks production complete → inspection pass → admin marks delivered → admin records payout.
+5. Security test: buyer cannot see supplier contact details or supplier table even via API.
+6. RLS test cases for buyers, suppliers, admin.
+
+---
+
+# 18 — Deployment, CI/CD & infra
+
+* Provide GitHub Actions (or Replit deploy) workflow: run tests → deploy to staging.
+* Staging env should be auto-deployed; production deploy via manual promotion.
+* Provide Infrastructure as Code for environment variables and secrets (instructions).
+* Provide one-click deploy instructions for Supabase (migrations & seeds).
+
+---
+
+# 19 — Monitoring, logging & backups
+
+* Integrate Sentry for errors.
+* Add basic metrics dashboard (Grafana/Datadog or simple server logs) showing RFQs/day, offers, orders, revenue.
+* Daily DB backups (Supabase managed) and restore test verified.
+
+---
+
+# 20 — Documentation & handover
+
+* README with environment setup, deployment steps, Supabase project setup (schema + RLS + seed).
+* API docs (OpenAPI).
+* Admin manual covering all operations.
+* Buyer & Supplier quick guides (how to create RFQ, submit quote, accept offer).
+* Acceptance test report and how to run tests locally.
+
+---
+
+# 21 — Deliver in first reply (what Replit Agent must send back immediately)
+
+1. **Architecture diagram** (image + short explanation).
+2. **Supabase SQL**: full schema + RLS policies + seed SKUs script (in SQL).
+3. **Milestone plan**: 3 milestones (MVP, Enhancements, Production hardening) with deliverables (do NOT provide fixed day estimates — instead request that the agent include their estimates in days for each milestone).
+4. **Staging URL** after Milestone 1.
+5. **List of open decisions / anything you couldn’t implement without access** (e.g., Razorpay keys, domain DNS, Supabase project creds).
+
+---
+
+# 22 — Acceptance criteria (one paragraph)
+
+App is accepted when Buyers can create RFQs with files, Admin can invite suppliers and compose anonymized offers, Suppliers can submit quotes for invited RFQs, Buyers can accept an offer and pay deposit via Razorpay sandbox, and the RLS/security tests pass (buyers cannot access supplier contact data). All code, migrations, and docs are delivered and the app is deployable to production with provided instructions.
+
+---
+
+# 23 — Extras & nice-to-have (implement if time permits)
+
+* CAD viewer integration (Autodesk Forge or GLTF pipeline).
+* Auto-invite top N matching suppliers (configurable) but keep admin override.
+* Simple instant rule-based quote estimator for CNC and sheet metal.
+* Basic mobile-friendly PWA features.
+
+---
+
+# 24 — Tone & UI guidance
+
+* Professional enterprise look: clean, grid-based layout, clear typography, no emojis.
+* Use consistent CTAs and color system; Buyer CTA primary color.
+* Keep forms short and validate server-side. Use progressive disclosure for advanced fields.
+
+---
+
+# 25 — Final note to implementor (must be included in your first reply)
+
+> After reviewing this spec, produce an architecture diagram, the full Supabase SQL (schema + RLS + seed scripts for SKUs), and a milestone plan. Then spin up a staging instance for Milestone 1 and provide the staging URL. Also include an itemized list of required secrets/credentials (Razorpay keys, domain DNS, Supabase admin key) that I must provide to finish production deployment.
+
+---
+
+Paste this entire brief into Replit Agent and execute. If anything is ambiguous during implementation, propose a reasonable default and document it in your milestone plan; do not pause for frequent clarifying questions. Deliver a staging URL after Milestone 1 so I can test end-to-end.
+
+If you want, after they respond I can produce the exact SQL seed file for the SKUs and `parameters_schema` JSON for every SKU (machine-readable) — say the word and I’ll output it next.
