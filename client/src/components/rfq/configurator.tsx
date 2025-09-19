@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,8 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useToast } from '@/hooks/use-toast';
 import { SKU } from '@shared/schema';
 import { UNITS, PRIORITIES, TOLERANCES, SURFACE_FINISHES, INSPECTION_TYPES, PACKAGING_TYPES } from '@/lib/constants';
+import { Upload, X } from 'lucide-react';
 
 const rfqItemSchema = z.object({
   itemTitle: z.string().min(1, 'Item title is required'),
@@ -38,6 +40,12 @@ const rfqItemSchema = z.object({
   budgetMax: z.number().optional(),
   ndaRequired: z.boolean(),
   confidential: z.boolean(),
+  files: z.array(z.object({
+    name: z.string(),
+    size: z.number(),
+    type: z.string(),
+    data: z.string()
+  })).optional(),
 });
 
 type RFQItemForm = z.infer<typeof rfqItemSchema>;
@@ -51,6 +59,11 @@ interface ConfiguratorProps {
 export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 7;
+  const [uploadedFiles, setUploadedFiles] = useState<{name: string, size: number, type: string, data: string}[]>([]);
+  const { toast } = useToast();
+  
+  // File upload refs
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<RFQItemForm>({
     resolver: zodResolver(rfqItemSchema),
@@ -63,6 +76,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
       inspection: 'basic',
       packaging: 'standard',
       surfaceFinish: [],
+      files: [],
     },
   });
 
@@ -82,8 +96,117 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
     }
   };
 
+  const handleFileUpload = async () => {
+    const input = fileInputRef.current;
+    if (!input) return;
+
+    input.click();
+    
+    input.onchange = async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (!files) return;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Validate file type for CAD/engineering files
+        const allowedTypes = [
+          'application/pdf',
+          'image/jpeg', 'image/jpg', 'image/png',
+          'application/step', 'model/step', 'application/stp',
+          'application/iges', 'model/iges',
+          'model/stl', 'application/sla',
+          'image/vnd.dwg', 'application/dwg',
+          'image/vnd.dxf', 'application/dxf',
+          'application/zip',
+          'text/plain'
+        ];
+        
+        const fileExtension = file.name.toLowerCase().split('.').pop();
+        const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'step', 'stp', 'iges', 'igs', 'stl', 'dwg', 'dxf', 'zip', 'txt'];
+        
+        if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension || '')) {
+          toast({
+            title: "Invalid file type",
+            description: "Please select CAD files (STEP, IGES, STL, DWG, DXF), documents (PDF), images (JPG, PNG), or ZIP files.",
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        // Validate file size (50MB max for CAD files, 10MB for others)
+        const isCadFile = ['step', 'stp', 'iges', 'igs', 'stl', 'dwg', 'dxf'].includes(fileExtension || '');
+        const maxSize = isCadFile ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        
+        if (file.size > maxSize) {
+          const maxSizeMB = maxSize / (1024 * 1024);
+          toast({
+            title: "File too large",
+            description: `Please select a file smaller than ${maxSizeMB}MB for ${isCadFile ? 'CAD files' : 'documents/images'}.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        try {
+          // Convert file to base64
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result as string;
+            const newFile = {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              data: base64
+            };
+            
+            setUploadedFiles(prev => {
+              const updated = [...prev, newFile];
+              // Update form data
+              form.setValue('files', updated);
+              return updated;
+            });
+            
+            toast({
+              title: "File uploaded successfully",
+              description: `${file.name} has been added to your RFQ.`,
+            });
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          toast({
+            title: "Upload failed",
+            description: "Failed to process the file.",
+            variant: "destructive",
+          });
+        }
+      }
+      
+      // Reset input
+      (e.target as HTMLInputElement).value = '';
+    };
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setUploadedFiles(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      form.setValue('files', updated);
+      return updated;
+    });
+    
+    toast({
+      title: "File removed",
+      description: "File has been removed from your RFQ.",
+    });
+  };
+
   const handleSubmit = (data: RFQItemForm) => {
-    onSubmit(data);
+    // Include uploaded files in submission data
+    const submissionData = {
+      ...data,
+      files: uploadedFiles
+    };
+    onSubmit(submissionData);
   };
 
   const steps = [
@@ -234,15 +357,64 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
               {currentStep === 2 && (
                 <div className="space-y-4">
                   <div>
-                    <Label>CAD Files</Label>
+                    <Label>CAD Files & Technical Drawings</Label>
                     <div className="mt-2 border-dashed border-2 border-border rounded-lg p-8 text-center">
-                      <p className="text-muted-foreground">
-                        Upload CAD files (STEP, IGES, STL, DWG, DXF, ZIP, PDF)
+                      <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground mb-2">
+                        Upload CAD files, technical drawings, specifications, or reference images
                       </p>
-                      <Button variant="outline" className="mt-2" data-testid="button-upload-files">
-                        Upload Files
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Supported: STEP, IGES, STL, DWG, DXF, PDF, JPG, PNG, ZIP (up to 50MB for CAD files)
+                      </p>
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        onClick={handleFileUpload}
+                        data-testid="button-upload-files"
+                      >
+                        Select Files
                       </Button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        multiple
+                        accept=".step,.stp,.iges,.igs,.stl,.dwg,.dxf,.pdf,.jpg,.jpeg,.png,.zip,.txt"
+                        style={{ display: 'none' }}
+                        data-testid="input-file-upload"
+                      />
                     </div>
+                    
+                    {uploadedFiles.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <Label className="text-sm font-medium">Uploaded Files ({uploadedFiles.length})</Label>
+                        <div className="space-y-2">
+                          {uploadedFiles.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                                  <Upload className="h-4 w-4 text-primary" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">{file.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveFile(index)}
+                                data-testid={`button-remove-file-${index}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -606,18 +778,88 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
               )}
 
               {currentStep === 7 && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <h3 className="text-lg font-semibold">Review Your RFQ</h3>
-                  <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                    <p><strong>Item:</strong> {form.getValues('itemTitle')}</p>
-                    <p><strong>Process:</strong> {selectedSKU.processName}</p>
-                    <p><strong>Quantity:</strong> {form.getValues('quantity')} {form.getValues('unit')}</p>
-                    <p><strong>Material:</strong> {form.getValues('material')}</p>
-                    <p><strong>Priority:</strong> {form.getValues('priority')}</p>
+                  
+                  {/* Basic Information */}
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <h4 className="font-medium mb-3">Basic Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      <p><strong>Item:</strong> {form.getValues('itemTitle')}</p>
+                      <p><strong>Process:</strong> {selectedSKU.processName}</p>
+                      <p><strong>Quantity:</strong> {form.getValues('quantity')} {form.getValues('unit')}</p>
+                      <p><strong>Material:</strong> {form.getValues('material')}</p>
+                      <p><strong>Priority:</strong> {form.getValues('priority')}</p>
+                      {form.getValues('targetDeliveryDate') && (
+                        <p><strong>Delivery Date:</strong> {form.getValues('targetDeliveryDate')}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+
+                  {/* Files Section */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Attached Files ({uploadedFiles.length})</h4>
+                      <div className="space-y-2">
+                        {uploadedFiles.map((file, index) => (
+                          <div key={index} className="flex items-center space-x-3 text-sm">
+                            <Upload className="h-4 w-4 text-primary" />
+                            <span>{file.name}</span>
+                            <span className="text-muted-foreground">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Material & Specifications */}
+                  {(form.getValues('materialGrade') || form.getValues('tolerance') || form.getValues('specialRequirements')) && (
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Material & Specifications</h4>
+                      <div className="space-y-1 text-sm">
+                        {form.getValues('materialGrade') && <p><strong>Grade:</strong> {form.getValues('materialGrade')}</p>}
+                        {form.getValues('tolerance') && <p><strong>Tolerance:</strong> {form.getValues('tolerance')}</p>}
+                        {form.getValues('specialRequirements') && (
+                          <p><strong>Special Requirements:</strong> {form.getValues('specialRequirements')}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional Options */}
+                  {(form.getValues('toolingRequired') || form.getValues('sampleRequired') || form.getValues('ndaRequired') || form.getValues('confidential')) && (
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Additional Options</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        {form.getValues('toolingRequired') && <p>✓ Tooling Required</p>}
+                        {form.getValues('sampleRequired') && <p>✓ Sample Required</p>}
+                        {form.getValues('ndaRequired') && <p>✓ NDA Required</p>}
+                        {form.getValues('confidential') && <p>✓ Confidential RFQ</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Budget Range */}
+                  {(form.getValues('budgetMin') || form.getValues('budgetMax') || form.getValues('targetUnitPrice')) && (
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <h4 className="font-medium mb-3">Budget Information</h4>
+                      <div className="space-y-1 text-sm">
+                        {form.getValues('targetUnitPrice') && <p><strong>Target Unit Price:</strong> ₹{form.getValues('targetUnitPrice')}</p>}
+                        {(form.getValues('budgetMin') && form.getValues('budgetMax')) && (
+                          <p><strong>Budget Range:</strong> ₹{form.getValues('budgetMin')} - ₹{form.getValues('budgetMax')}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start space-x-3 p-4 border rounded-lg">
                     <Checkbox required data-testid="checkbox-terms" />
-                    <Label>I agree to the Terms & Conditions and anti-disintermediation policy</Label>
+                    <div>
+                      <Label className="text-sm cursor-pointer">I agree to the Terms & Conditions and anti-disintermediation policy</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        By submitting this RFQ, I confirm that all information provided is accurate and complete.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
