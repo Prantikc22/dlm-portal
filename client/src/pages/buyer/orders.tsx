@@ -60,8 +60,8 @@ export default function BuyerOrders() {
                         ₹{order.totalAmount?.toLocaleString() || 'N/A'}
                       </td>
                       <td className="py-4 px-6">
-                        <Badge className={ORDER_STATUS_COLORS[order.status] || ORDER_STATUS_COLORS.created}>
-                          {order.status.replace('_', ' ').toUpperCase()}
+                        <Badge className={ORDER_STATUS_COLORS[order.status || 'created'] || ORDER_STATUS_COLORS.created}>
+                          {(order.status || 'created').replace('_', ' ').toUpperCase()}
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-sm text-muted-foreground">

@@ -177,8 +177,8 @@ export default function AdminRFQManagement() {
                         {rfq.details?.sku?.processName || 'N/A'}
                       </td>
                       <td className="py-4 px-6">
-                        <Badge className={RFQ_STATUS_COLORS[rfq.status] || RFQ_STATUS_COLORS.draft}>
-                          {rfq.status.replace('_', ' ').toUpperCase()}
+                        <Badge className={RFQ_STATUS_COLORS[rfq.status || 'draft'] || RFQ_STATUS_COLORS.draft}>
+                          {(rfq.status || 'draft').replace('_', ' ').toUpperCase()}
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-sm text-muted-foreground">

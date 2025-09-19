@@ -75,7 +75,7 @@ export function Navbar({ onTabChange, activeTab }: NavbarProps) {
             </div>
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
-                <span data-testid="text-user-initials">{getInitials(user?.name)}</span>
+                <span data-testid="text-user-initials">{getInitials(user?.name || undefined)}</span>
               </div>
               <span className="text-sm font-medium" data-testid="text-user-name">
                 {user?.name || user?.email}

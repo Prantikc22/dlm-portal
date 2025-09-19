@@ -68,13 +68,15 @@ export const apiClient = {
 };
 
 // Auth helpers
-export const getAuthHeaders = () => {
+export const getAuthHeaders = (): Record<string, string> => {
   const user = localStorage.getItem('user');
   if (user) {
     const userData = JSON.parse(user);
-    return {
-      'x-user-email': userData.email,
-    };
+    if (userData.email) {
+      return {
+        'x-user-email': userData.email,
+      };
+    }
   }
   return {};
 };

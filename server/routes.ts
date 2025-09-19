@@ -1,11 +1,11 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema } from "@shared/schema";
 import { z } from "zod";
 
 // Simple session middleware for demo - in production use proper auth
-interface AuthenticatedRequest extends Express.Request {
+interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
@@ -156,7 +156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/protected/rfqs", authenticateUser, async (req: AuthenticatedRequest, res) => {
     try {
-      let rfqs;
+      let rfqs: any[] = [];
       if (req.user!.role === "buyer") {
         rfqs = await storage.getRFQsByBuyer(req.user!.id);
       } else if (req.user!.role === "supplier") {
@@ -241,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Order routes
   app.get("/api/protected/orders", authenticateUser, async (req: AuthenticatedRequest, res) => {
     try {
-      let orders;
+      let orders: any[] = [];
       if (req.user!.role === "buyer") {
         orders = await storage.getOrdersByBuyer(req.user!.id);
       } else if (req.user!.role === "supplier") {

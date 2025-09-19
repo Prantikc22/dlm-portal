@@ -86,7 +86,7 @@ export default function AdminOfferComposer() {
 
   const publishOfferMutation = useMutation({
     mutationFn: (offerId: string) =>
-      authenticatedApiClient.post(`/api/protected/admin/offers/${offerId}/publish`),
+      authenticatedApiClient.post(`/api/protected/admin/offers/${offerId}/publish`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/protected/admin/offers'] });
       toast({

@@ -123,8 +123,8 @@ export default function BuyerDashboard() {
                         {rfq.title}
                       </td>
                       <td className="py-4 px-6">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${RFQ_STATUS_COLORS[rfq.status] || RFQ_STATUS_COLORS.draft}`}>
-                          {rfq.status.replace('_', ' ').toUpperCase()}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${RFQ_STATUS_COLORS[rfq.status || 'draft'] || RFQ_STATUS_COLORS.draft}`}>
+                          {(rfq.status || 'draft').replace('_', ' ').toUpperCase()}
                         </span>
                       </td>
                       <td className="py-4 px-6 text-sm text-muted-foreground">
