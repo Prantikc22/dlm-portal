@@ -18,13 +18,15 @@ export default function AdminDashboard() {
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/suppliers'),
   });
 
-  // Mock data for admin metrics - in production this would come from API
-  const metrics = {
-    activeRFQs: 32,
-    verifiedSuppliers: suppliers.length || 147,
-    monthlyVolume: 4520000, // ₹45.2L
-    successRate: 94.5,
-  };
+  const { data: metrics = {
+    activeRFQs: 0,
+    verifiedSuppliers: 0,
+    monthlyVolume: 0,
+    successRate: 0,
+  } } = useQuery({
+    queryKey: ['/api/protected/admin/metrics'],
+    queryFn: () => authenticatedApiClient.get('/api/protected/admin/metrics'),
+  });
 
   const rfqInbox = [
     {

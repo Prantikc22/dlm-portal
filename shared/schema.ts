@@ -276,6 +276,11 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   uploadedAt: true,
 });
 
+export const insertCuratedOfferSchema = createInsertSchema(curatedOffers).omit({
+  id: true,
+  publishedAt: true,
+});
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -283,3 +288,4 @@ export type InsertSupplierProfile = z.infer<typeof insertSupplierProfileSchema>;
 export type InsertRFQ = z.infer<typeof insertRFQSchema>;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type InsertCuratedOffer = z.infer<typeof insertCuratedOfferSchema>;

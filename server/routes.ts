@@ -1,12 +1,21 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { storage } from "./storage";
-import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema } from "@shared/schema";
+import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, supplierVerificationEnum } from "@shared/schema";
 import { z } from "zod";
 import { ZodError } from "zod";
 
-// Simple session middleware for demo - in production use proper auth
+// Validation schemas for admin endpoints
+const supplierStatusUpdateSchema = z.object({
+  supplierId: z.string().uuid("Invalid supplier ID format"),
+  status: z.enum(["unverified", "bronze", "silver", "gold"], {
+    errorMap: () => ({ message: "Status must be one of: unverified, bronze, silver, gold" })
+  })
+});
+
+// Secure authentication interface
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
@@ -16,8 +25,69 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-// Middleware to simulate authentication
+// JWT Authentication Middleware - Replaces insecure header-based auth
 const authenticateUser = async (req: any, res: any, next: any) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Authentication required - Bearer token missing" });
+    }
+
+    const token = authHeader.substring(7);
+    const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+    
+    if (!jwtSecret) {
+      console.error('❌ JWT_SECRET or SUPABASE_JWT_SECRET not configured');
+      return res.status(500).json({ error: "Authentication configuration error" });
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+    } catch (jwtError: any) {
+      if (jwtError.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: "Token expired" });
+      } else if (jwtError.name === 'JsonWebTokenError') {
+        return res.status(401).json({ error: "Invalid token" });
+      }
+      return res.status(401).json({ error: "Token verification failed" });
+    }
+
+    // Extract user info from JWT payload (Supabase format)
+    const userId = decoded.sub || decoded.user_id;
+    const userEmail = decoded.email;
+    const userRole = decoded.user_metadata?.role || decoded.role;
+    
+    if (!userId || !userEmail) {
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
+
+    // Verify user exists in database and get current data
+    const user = await storage.getUserByEmail(userEmail);
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Use database role as authoritative source
+    req.user = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId
+    };
+    
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ error: "Authentication failed" });
+  }
+};
+
+// Fallback authentication for development (with warning)
+const authenticateUserLegacy = async (req: any, res: any, next: any) => {
+  console.warn('⚠️  SECURITY WARNING: Using insecure header-based authentication. Deploy with proper JWT_SECRET!');
+  
   const userEmail = req.headers['x-user-email'] as string;
   if (!userEmail) {
     return res.status(401).json({ error: "Authentication required" });
@@ -30,6 +100,17 @@ const authenticateUser = async (req: any, res: any, next: any) => {
 
   req.user = user;
   next();
+};
+
+// Smart authentication middleware that uses JWT when available, falls back to legacy
+const authenticateUserSmart = async (req: any, res: any, next: any) => {
+  const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+  
+  if (jwtSecret) {
+    return authenticateUser(req, res, next);
+  } else {
+    return authenticateUserLegacy(req, res, next);
+  }
 };
 
 const requireRole = (roles: string[]) => (req: any, res: any, next: any) => {
@@ -141,8 +222,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Protected routes
-  app.use("/api/protected", authenticateUser);
+  // Protected routes with secure authentication
+  app.use("/api/protected", authenticateUserSmart);
 
   // Company routes
   app.post("/api/protected/companies", async (req: AuthenticatedRequest, res) => {
@@ -243,10 +324,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const invites = await storage.getSupplierInvites(req.user!.id);
         rfqs = invites.map(invite => invite.rfq);
         console.log(`📋 Found ${rfqs.length} invited RFQs for supplier ${req.user!.id}`);
+      } else if (req.user!.role === "admin") {
+        rfqs = await storage.getAllRFQs();
+        console.log(`📋 Found ${rfqs.length} RFQs for admin ${req.user!.id}`);
       } else {
-        // Admin can see all RFQs - would need a different method
         rfqs = [];
-        console.log("📋 Admin role - returning empty RFQs list");
+        console.log("📋 Unknown role - returning empty RFQs list");
       }
       res.json(rfqs);
     } catch (error) {
@@ -318,6 +401,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(suppliers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch suppliers" });
+    }
+  });
+
+  // Admin RFQ management
+  app.get("/api/protected/admin/rfqs", requireRole(["admin"]), async (req, res) => {
+    try {
+      const rfqs = await storage.getAllRFQs();
+      res.json(rfqs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch RFQs" });
+    }
+  });
+
+  // Admin supplier status update with proper validation
+  app.post("/api/protected/admin/supplier-status", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      // Validate request body with Zod schema
+      const validationResult = supplierStatusUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validationResult.error.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        });
+      }
+
+      const { supplierId, status } = validationResult.data;
+
+      // Find the supplier's company ID first
+      const supplier = await storage.getUser(supplierId);
+      if (!supplier || supplier.role !== 'supplier') {
+        return res.status(404).json({ error: "Supplier not found" });
+      }
+      
+      if (!supplier.companyId) {
+        return res.status(404).json({ error: "Supplier has no company associated" });
+      }
+
+      // Verify supplier profile exists before updating
+      const supplierProfile = await storage.getSupplierProfile(supplier.companyId);
+      if (!supplierProfile) {
+        return res.status(404).json({ error: "Supplier profile not found" });
+      }
+
+      // Perform the update
+      const updateResult = await storage.updateSupplierVerificationStatus(supplier.companyId, status);
+      
+      // Return success with updated information
+      res.json({ 
+        success: true,
+        supplierId: supplierId,
+        companyId: supplier.companyId,
+        previousStatus: supplierProfile.verifiedStatus,
+        newStatus: status,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Supplier status update error:', error);
+      res.status(500).json({ error: "Failed to update supplier status" });
+    }
+  });
+
+  // Admin quotes access
+  app.get("/api/protected/admin/quotes", requireRole(["admin"]), async (req, res) => {
+    try {
+      const quotes = await storage.getAllQuotes();
+      res.json(quotes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch quotes" });
+    }
+  });
+
+  // Admin curated offers
+  app.get("/api/protected/admin/offers", requireRole(["admin"]), async (req, res) => {
+    try {
+      const offers = await storage.getCuratedOffers();
+      res.json(offers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch offers" });
+    }
+  });
+
+  app.post("/api/protected/admin/curated-offers", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const offerData = insertCuratedOfferSchema.parse({
+        ...req.body,
+        adminId: req.user!.id
+      });
+      
+      const offer = await storage.createCuratedOffer(offerData);
+      res.json(offer);
+    } catch (error) {
+      console.error('Create curated offer error:', error);
+      if (error instanceof ZodError) {
+        const validationErrors = error.errors.map(err => ({
+          field: err.path.join('.'),
+          message: err.message
+        }));
+        
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validationErrors 
+        });
+      }
+      res.status(400).json({ error: "Invalid offer data" });
+    }
+  });
+
+  app.post("/api/protected/admin/offers/:id/publish", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const offerId = req.params.id;
+      await storage.publishCuratedOffer(offerId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to publish offer" });
+    }
+  });
+
+  // Admin metrics for dashboard
+  app.get("/api/protected/admin/metrics", requireRole(["admin"]), async (req, res) => {
+    try {
+      const metrics = await storage.getAdminMetrics();
+      res.json(metrics);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch metrics" });
     }
   });
 

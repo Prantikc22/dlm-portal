@@ -7,7 +7,7 @@ import {
   type User, type Company, type SupplierProfile, type SKU, type RFQ, 
   type Quote, type CuratedOffer, type Order, type Document,
   type InsertUser, type InsertCompany, type InsertSupplierProfile, 
-  type InsertRFQ, type InsertQuote, type InsertDocument
+  type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -181,6 +181,7 @@ class InMemoryStorage implements IStorage {
   private rfqs: RFQ[] = [];
   private quotes: Quote[] = [];
   private orders: Order[] = [];
+  private curatedOffers: CuratedOffer[] = [];
 
   async getUser(id: string): Promise<User | undefined> {
     return this.users.find(u => u.id === id);
@@ -429,6 +430,105 @@ class InMemoryStorage implements IStorage {
       order.updatedAt = new Date();
     }
   }
+
+  // Admin-specific methods
+  async getAllRFQs(): Promise<RFQ[]> {
+    return this.rfqs;
+  }
+
+  async updateSupplierVerificationStatus(companyId: string, status: string): Promise<void> {
+    const profile = this.supplierProfiles.find(p => p.companyId === companyId);
+    if (profile) {
+      profile.verifiedStatus = status as any;
+      profile.updatedAt = new Date();
+    }
+  }
+
+  async getAdminMetrics(): Promise<{
+    activeRFQs: number;
+    verifiedSuppliers: number;
+    monthlyVolume: number;
+    successRate: number;
+  }> {
+    const activeRFQs = this.rfqs.filter(rfq => 
+      ['submitted', 'under_review', 'invited', 'offers_published'].includes(rfq.status)
+    ).length;
+    
+    const verifiedSuppliers = this.supplierProfiles.filter(p => 
+      p.verifiedStatus !== 'unverified'
+    ).length;
+
+    // Calculate real metrics from actual data
+    const currentMonth = new Date();
+    currentMonth.setDate(1);
+    currentMonth.setHours(0, 0, 0, 0);
+    
+    // Monthly volume: sum of all orders from current month
+    const monthlyOrders = this.orders.filter(order => 
+      new Date(order.createdAt) >= currentMonth
+    );
+    const monthlyVolume = monthlyOrders.reduce((sum, order) => {
+      // Extract price from order metadata or use 0
+      const price = typeof order.totalAmount === 'number' ? order.totalAmount : 0;
+      return sum + price;
+    }, 0);
+    
+    // Success rate: percentage of completed orders vs total orders
+    const totalCompletedOrders = this.orders.filter(order => 
+      ['delivered', 'closed'].includes(order.status)
+    ).length;
+    const totalOrders = this.orders.length;
+    const successRate = totalOrders > 0 ? (totalCompletedOrders / totalOrders) * 100 : 0;
+
+    return {
+      activeRFQs,
+      verifiedSuppliers,
+      monthlyVolume: Math.round(monthlyVolume),
+      successRate: Math.round(successRate * 100) / 100, // Round to 2 decimal places
+    };
+  }
+
+  async getAllQuotes(): Promise<Array<Quote & { rfq: RFQ; supplier: User }>> {
+    return this.quotes.map(quote => {
+      const rfq = this.rfqs.find(r => r.id === quote.rfqId)!;
+      const supplier = this.users.find(u => u.id === quote.supplierId)!;
+      return { ...quote, rfq, supplier };
+    }).filter(item => item.rfq && item.supplier);
+  }
+
+  async createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer> {
+    const newOffer: CuratedOffer = {
+      id: randomUUID(),
+      rfqId: offer.rfqId,
+      adminId: offer.adminId,
+      title: offer.title,
+      details: offer.details,
+      totalPrice: offer.totalPrice || null,
+      supplierIndicators: offer.supplierIndicators || null,
+      publishedAt: null,
+      expiresAt: offer.expiresAt ? new Date(offer.expiresAt) : null,
+    };
+    // Add to a curated offers array (we'll need to add this property)
+    if (!this.curatedOffers) this.curatedOffers = [];
+    this.curatedOffers.push(newOffer);
+    return newOffer;
+  }
+
+  async getCuratedOffers(): Promise<Array<CuratedOffer & { rfq: RFQ }>> {
+    if (!this.curatedOffers) this.curatedOffers = [];
+    return this.curatedOffers.map(offer => {
+      const rfq = this.rfqs.find(r => r.id === offer.rfqId)!;
+      return { ...offer, rfq };
+    }).filter(item => item.rfq);
+  }
+
+  async publishCuratedOffer(offerId: string): Promise<void> {
+    if (!this.curatedOffers) this.curatedOffers = [];
+    const offer = this.curatedOffers.find(o => o.id === offerId);
+    if (offer) {
+      offer.publishedAt = new Date();
+    }
+  }
 }
 
 // Database connection setup  
@@ -496,6 +596,20 @@ export interface IStorage {
   getOrdersByBuyer(buyerId: string): Promise<Order[]>;
   getOrdersBySupplier(supplierId: string): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<void>;
+
+  // Admin-specific methods
+  getAllRFQs(): Promise<RFQ[]>;
+  updateSupplierVerificationStatus(companyId: string, status: string): Promise<void>;
+  getAdminMetrics(): Promise<{
+    activeRFQs: number;
+    verifiedSuppliers: number;
+    monthlyVolume: number;
+    successRate: number;
+  }>;
+  getAllQuotes(): Promise<Array<Quote & { rfq: RFQ; supplier: User }>>;
+  createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer>;
+  getCuratedOffers(): Promise<Array<CuratedOffer & { rfq: RFQ }>>;
+  publishCuratedOffer(offerId: string): Promise<void>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -656,6 +770,102 @@ export class SupabaseStorage implements IStorage {
   async updateOrderStatus(id: string, status: string): Promise<void> {
     await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
   }
+
+  // Admin-specific methods
+  async getAllRFQs(): Promise<RFQ[]> {
+    return await db.select().from(rfqs).orderBy(desc(rfqs.createdAt));
+  }
+
+  async updateSupplierVerificationStatus(companyId: string, status: string): Promise<void> {
+    await db.update(supplierProfiles).set({ 
+      verifiedStatus: status as any, 
+      updatedAt: new Date() 
+    }).where(eq(supplierProfiles.companyId, companyId));
+  }
+
+  async getAdminMetrics(): Promise<{
+    activeRFQs: number;
+    verifiedSuppliers: number;
+    monthlyVolume: number;
+    successRate: number;
+  }> {
+    const activeRFQs = await db.select().from(rfqs).where(
+      inArray(rfqs.status, ['submitted', 'under_review', 'invited', 'offers_published'])
+    );
+    
+    const verifiedSuppliers = await db.select().from(supplierProfiles).where(
+      inArray(supplierProfiles.verifiedStatus, ['bronze', 'silver', 'gold'])
+    );
+
+    // Calculate real metrics from actual data
+    const currentMonth = new Date();
+    currentMonth.setDate(1);
+    currentMonth.setHours(0, 0, 0, 0);
+    
+    // Monthly volume: sum of all orders from current month  
+    const monthlyOrders = await db.select().from(orders).where(
+      sql`${orders.createdAt} >= ${currentMonth}`
+    );
+    
+    const monthlyVolume = monthlyOrders.reduce((sum, order) => {
+      const amount = order.totalAmount ? parseFloat(order.totalAmount.toString()) : 0;
+      return sum + amount;
+    }, 0);
+    
+    // Success rate: percentage of completed orders vs total orders
+    const completedOrders = await db.select().from(orders).where(
+      inArray(orders.status, ['delivered', 'closed'])
+    );
+    
+    const totalOrders = await db.select().from(orders);
+    const successRate = totalOrders.length > 0 ? (completedOrders.length / totalOrders.length) * 100 : 0;
+
+    return {
+      activeRFQs: activeRFQs.length,
+      verifiedSuppliers: verifiedSuppliers.length,
+      monthlyVolume: Math.round(monthlyVolume),
+      successRate: Math.round(successRate * 100) / 100, // Round to 2 decimal places
+    };
+  }
+
+  async getAllQuotes(): Promise<Array<Quote & { rfq: RFQ; supplier: User }>> {
+    const result = await db
+      .select({
+        quote: quotes,
+        rfq: rfqs,
+        supplier: users,
+      })
+      .from(quotes)
+      .innerJoin(rfqs, eq(quotes.rfqId, rfqs.id))
+      .innerJoin(users, eq(quotes.supplierId, users.id))
+      .orderBy(desc(quotes.createdAt));
+    
+    return result.map(r => ({ ...r.quote, rfq: r.rfq, supplier: r.supplier }));
+  }
+
+  async createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer> {
+    const result = await db.insert(curatedOffers).values(offer).returning();
+    return result[0];
+  }
+
+  async getCuratedOffers(): Promise<Array<CuratedOffer & { rfq: RFQ }>> {
+    const result = await db
+      .select({
+        offer: curatedOffers,
+        rfq: rfqs,
+      })
+      .from(curatedOffers)
+      .innerJoin(rfqs, eq(curatedOffers.rfqId, rfqs.id))
+      .orderBy(desc(curatedOffers.publishedAt));
+    
+    return result.map(r => ({ ...r.offer, rfq: r.rfq }));
+  }
+
+  async publishCuratedOffer(offerId: string): Promise<void> {
+    await db.update(curatedOffers).set({ 
+      publishedAt: new Date() 
+    }).where(eq(curatedOffers.id, offerId));
+  }
 }
 
 // Wrapper storage that falls back to in-memory when database operations fail
@@ -793,6 +1003,35 @@ class FallbackStorage implements IStorage {
 
   async deleteDocument(id: string): Promise<void> {
     return this.withFallback(async (storage) => storage.deleteDocument(id));
+  }
+
+  // Admin methods
+  async getAllRFQs(): Promise<any> {
+    return this.withFallback(async (storage) => storage.getAllRFQs());
+  }
+
+  async updateSupplierVerificationStatus(companyId: string, status: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.updateSupplierVerificationStatus(companyId, status));
+  }
+
+  async getAdminMetrics(): Promise<any> {
+    return this.withFallback(async (storage) => storage.getAdminMetrics());
+  }
+
+  async getAllQuotes(): Promise<any> {
+    return this.withFallback(async (storage) => storage.getAllQuotes());
+  }
+
+  async createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer> {
+    return this.withFallback(async (storage) => storage.createCuratedOffer(offer));
+  }
+
+  async getCuratedOffers(): Promise<any> {
+    return this.withFallback(async (storage) => storage.getCuratedOffers());
+  }
+
+  async publishCuratedOffer(offerId: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.publishCuratedOffer(offerId));
   }
 }
 
