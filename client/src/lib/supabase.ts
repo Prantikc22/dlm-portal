@@ -1,0 +1,87 @@
+// Simple HTTP client for API calls
+export const apiClient = {
+  get: async (url: string, headers: Record<string, string> = {}) => {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  post: async (url: string, data: any, headers: Record<string, string> = {}) => {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  put: async (url: string, data: any, headers: Record<string, string> = {}) => {
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+
+  delete: async (url: string, headers: Record<string, string> = {}) => {
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
+};
+
+// Auth helpers
+export const getAuthHeaders = () => {
+  const user = localStorage.getItem('user');
+  if (user) {
+    const userData = JSON.parse(user);
+    return {
+      'x-user-email': userData.email,
+    };
+  }
+  return {};
+};
+
+export const authenticatedApiClient = {
+  get: (url: string) => apiClient.get(url, getAuthHeaders()),
+  post: (url: string, data: any) => apiClient.post(url, data, getAuthHeaders()),
+  put: (url: string, data: any) => apiClient.put(url, data, getAuthHeaders()),
+  delete: (url: string) => apiClient.delete(url, getAuthHeaders()),
+};
