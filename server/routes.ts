@@ -188,6 +188,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // RFQ routes
   app.post("/api/protected/rfqs", requireRole(["buyer"]), async (req: AuthenticatedRequest, res) => {
+    console.log("🔵 RFQ Creation Request:", { 
+      userId: req.user?.id, 
+      userEmail: req.user?.email,
+      bodyKeys: Object.keys(req.body),
+      title: req.body?.title 
+    });
     try {
       const rfqData = insertRFQSchema.parse({
         ...req.body,
@@ -195,26 +201,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const rfq = await storage.createRFQ(rfqData);
+      console.log("✅ RFQ Created Successfully:", { id: rfq.id, rfqNumber: rfq.rfqNumber, title: rfq.title });
       res.json(rfq);
     } catch (error) {
+      console.error("❌ RFQ Creation Failed:", error);
       res.status(400).json({ error: "Invalid RFQ data" });
     }
   });
 
   app.get("/api/protected/rfqs", authenticateUser, async (req: AuthenticatedRequest, res) => {
+    console.log("🔍 RFQ Retrieval Request:", { 
+      userId: req.user?.id, 
+      userEmail: req.user?.email, 
+      userRole: req.user?.role 
+    });
     try {
       let rfqs: any[] = [];
       if (req.user!.role === "buyer") {
         rfqs = await storage.getRFQsByBuyer(req.user!.id);
+        console.log(`📋 Found ${rfqs.length} RFQs for buyer ${req.user!.id}`);
       } else if (req.user!.role === "supplier") {
         const invites = await storage.getSupplierInvites(req.user!.id);
         rfqs = invites.map(invite => invite.rfq);
+        console.log(`📋 Found ${rfqs.length} invited RFQs for supplier ${req.user!.id}`);
       } else {
         // Admin can see all RFQs - would need a different method
         rfqs = [];
+        console.log("📋 Admin role - returning empty RFQs list");
       }
       res.json(rfqs);
     } catch (error) {
+      console.error("❌ RFQ Retrieval Failed:", error);
       res.status(500).json({ error: "Failed to fetch RFQs" });
     }
   });

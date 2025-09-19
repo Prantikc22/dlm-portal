@@ -15,7 +15,166 @@ import { randomUUID } from "crypto";
 class InMemoryStorage implements IStorage {
   private users: User[] = [];
   private companies: Company[] = [];
-  private skus: SKU[] = [];
+  private skus: SKU[] = [
+    // Mechanical Manufacturing Industry
+    {
+      id: randomUUID(),
+      code: "MECH_CNC_001",
+      industry: "mechanical_manufacturing",
+      processName: "CNC Machining - Precision Parts",
+      description: "Precision CNC machining for mechanical components including brackets, housings, and custom parts",
+      defaultMoq: 100,
+      defaultLeadTimeDays: 14,
+      parametersSchema: {
+        material: ["Aluminum 6061", "Steel 4140", "Stainless Steel 316"],
+        tolerance: "±0.1mm",
+        finish: ["Anodized", "Powder Coated", "Raw"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "MECH_CAST_001",
+      industry: "mechanical_manufacturing",
+      processName: "Investment Casting - Mechanical Components",
+      description: "Investment casting for complex mechanical parts with tight tolerances",
+      defaultMoq: 500,
+      defaultLeadTimeDays: 21,
+      parametersSchema: {
+        material: ["Aluminum A356", "Steel 1045", "Cast Iron"],
+        complexity: ["Simple", "Medium", "Complex"],
+        finish: ["As Cast", "Machined", "Painted"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "MECH_SHEET_001",
+      industry: "mechanical_manufacturing",
+      processName: "Sheet Metal Fabrication",
+      description: "Sheet metal cutting, bending, and forming for custom fabrications",
+      defaultMoq: 50,
+      defaultLeadTimeDays: 10,
+      parametersSchema: {
+        material: ["Mild Steel", "Stainless Steel", "Aluminum"],
+        thickness: ["1mm", "2mm", "3mm", "5mm"],
+        finish: ["Galvanized", "Powder Coated", "Raw"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    // Electronics & Electrical Industry
+    {
+      id: randomUUID(),
+      code: "ELEC_PCB_001",
+      industry: "electronics_electrical",
+      processName: "PCB Manufacturing & Assembly",
+      description: "Complete PCB fabrication and SMT assembly services",
+      defaultMoq: 50,
+      defaultLeadTimeDays: 10,
+      parametersSchema: {
+        layers: ["2-Layer", "4-Layer", "6-Layer", "8-Layer"],
+        thickness: "1.6mm",
+        finish: ["HASL", "ENIG", "OSP"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "ELEC_MOLD_001",
+      industry: "electronics_electrical",
+      processName: "Injection Molding - Electronics Housings",
+      description: "Injection molding for electronic device enclosures and housings",
+      defaultMoq: 1000,
+      defaultLeadTimeDays: 18,
+      parametersSchema: {
+        material: ["ABS", "PC", "PC+ABS", "Nylon"],
+        color: ["Black", "White", "Clear", "Custom"],
+        texture: ["Smooth", "Textured", "Matte"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    // Packaging & Printing Industry
+    {
+      id: randomUUID(),
+      code: "PACK_CORR_001",
+      industry: "packaging_printing",
+      processName: "Corrugated Box Manufacturing",
+      description: "Custom corrugated packaging and shipping boxes",
+      defaultMoq: 1000,
+      defaultLeadTimeDays: 7,
+      parametersSchema: {
+        style: ["Regular Slotted", "Full Overlap", "Half Slotted"],
+        flute: ["Single Wall", "Double Wall", "Triple Wall"],
+        printing: ["1 Color", "2 Color", "4 Color", "Digital"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_FLEX_001",
+      industry: "packaging_printing",
+      processName: "Flexible Packaging - Pouches & Films",
+      description: "Flexible packaging solutions including pouches, films, and bags",
+      defaultMoq: 5000,
+      defaultLeadTimeDays: 12,
+      parametersSchema: {
+        material: ["PE", "PP", "PET", "Aluminum Foil"],
+        type: ["Stand-up Pouch", "Flat Pouch", "Roll Film"],
+        printing: ["Gravure", "Flexographic", "Digital"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    // Textile & Leather Industry
+    {
+      id: randomUUID(),
+      code: "TEXT_EMBB_001",
+      industry: "textile_leather",
+      processName: "Custom Embroidery Services",
+      description: "Custom embroidery for apparel, caps, and textile products",
+      defaultMoq: 100,
+      defaultLeadTimeDays: 5,
+      parametersSchema: {
+        fabric: ["Cotton", "Polyester", "Cotton Blend", "Denim"],
+        colors: ["1-3 Colors", "4-6 Colors", "7+ Colors"],
+        size: ["Small (2-3 inch)", "Medium (4-5 inch)", "Large (6+ inch)"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    // Construction & Infrastructure Industry
+    {
+      id: randomUUID(),
+      code: "CONST_STEEL_001",
+      industry: "construction_infrastructure",
+      processName: "Structural Steel Fabrication",
+      description: "Custom structural steel fabrication for construction and infrastructure",
+      defaultMoq: 1,
+      defaultLeadTimeDays: 30,
+      parametersSchema: {
+        grade: ["A36", "A572 Grade 50", "A992"],
+        coating: ["Galvanized", "Painted", "Raw"],
+        certification: ["AISC", "AWS D1.1", "Custom"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ];
   private rfqs: RFQ[] = [];
   private quotes: Quote[] = [];
   private orders: Order[] = [];
@@ -82,10 +241,40 @@ class InMemoryStorage implements IStorage {
   async getSuppliersByCapabilities(): Promise<any> { return []; }
   async getAllSKUs(): Promise<SKU[]> { return this.skus; }
   async getSKUByCode(): Promise<any> { return undefined; }
-  async getSKUsByIndustry(): Promise<SKU[]> { return []; }
-  async createRFQ(): Promise<any> { return {} as any; }
-  async getRFQ(): Promise<any> { return undefined; }
-  async getRFQsByBuyer(): Promise<RFQ[]> { return []; }
+  async getSKUsByIndustry(industry: string): Promise<SKU[]> {
+    return this.skus.filter(sku => sku.industry === industry && sku.active);
+  }
+  async createRFQ(rfq: InsertRFQ): Promise<RFQ> {
+    const rfqNumber = `RFQ-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const newRFQ: RFQ = {
+      id: randomUUID(),
+      rfqNumber,
+      buyerId: rfq.buyerId,
+      companyId: rfq.companyId,
+      title: rfq.title,
+      description: rfq.description || null,
+      industry: rfq.industry,
+      category: rfq.category,
+      specifications: rfq.specifications,
+      quantity: rfq.quantity,
+      preferredDeliveryDate: rfq.preferredDeliveryDate || null,
+      attachments: rfq.attachments || null,
+      priority: rfq.priority || "standard",
+      status: "open",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.rfqs.push(newRFQ);
+    return newRFQ;
+  }
+  
+  async getRFQ(id: string): Promise<RFQ | undefined> {
+    return this.rfqs.find(r => r.id === id);
+  }
+  
+  async getRFQsByBuyer(buyerId: string): Promise<RFQ[]> {
+    return this.rfqs.filter(r => r.buyerId === buyerId);
+  }
   async updateRFQStatus(): Promise<void> {}
   async createQuote(): Promise<any> { return {} as any; }
   async getQuotesByRFQ(): Promise<Quote[]> { return []; }
@@ -307,42 +496,42 @@ class FallbackStorage implements IStorage {
   private supabaseStorage = new SupabaseStorage();
   private useFallback = dbConnectionFailed;
 
-  private async withFallback<T>(operation: () => Promise<T>): Promise<T> {
+  private async withFallback<T>(operation: (storage: IStorage) => Promise<T>): Promise<T> {
     if (this.useFallback) {
-      return operation.bind(this.inMemoryStorage)();
+      return operation(this.inMemoryStorage);
     }
     
     try {
-      return await operation.bind(this.supabaseStorage)();
+      return await operation(this.supabaseStorage);
     } catch (error) {
       console.error("Database operation failed, falling back to in-memory storage:", error);
       this.useFallback = true;
-      return operation.bind(this.inMemoryStorage)();
+      return operation(this.inMemoryStorage);
     }
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.withFallback(async function() { return this.getUser(id); });
+    return this.withFallback(async (storage) => storage.getUser(id));
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return this.withFallback(async function() { return this.getUserByEmail(email); });
+    return this.withFallback(async (storage) => storage.getUserByEmail(email));
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    return this.withFallback(async function() { return this.createUser(user); });
+    return this.withFallback(async (storage) => storage.createUser(user));
   }
 
   async updateUserCompany(userId: string, companyId: string): Promise<void> {
-    return this.withFallback(async function() { return this.updateUserCompany(userId, companyId); });
+    return this.withFallback(async (storage) => storage.updateUserCompany(userId, companyId));
   }
 
   async getCompany(id: string): Promise<Company | undefined> {
-    return this.withFallback(async function() { return this.getCompany(id); });
+    return this.withFallback(async (storage) => storage.getCompany(id));
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    return this.withFallback(async function() { return this.createCompany(company); });
+    return this.withFallback(async (storage) => storage.createCompany(company));
   }
 
   // Delegate other methods with fallback
@@ -359,15 +548,15 @@ class FallbackStorage implements IStorage {
   }
 
   async getAllSKUs(): Promise<SKU[]> {
-    return this.withFallback(async function() { return this.getAllSKUs(); });
+    return this.withFallback(async (storage) => storage.getAllSKUs());
   }
 
   async getSKUByCode(code: string): Promise<any> {
-    return this.withFallback(async function() { return this.getSKUByCode(code); });
+    return this.withFallback(async (storage) => storage.getSKUByCode(code));
   }
 
   async getSKUsByIndustry(industry: string): Promise<SKU[]> {
-    return this.withFallback(async function() { return this.getSKUsByIndustry(industry); });
+    return this.withFallback(async (storage) => storage.getSKUsByIndustry(industry));
   }
 
   async createRFQ(rfq: any): Promise<any> {
@@ -428,6 +617,21 @@ const storage: IStorage = new FallbackStorage();
 
 if (dbConnectionFailed) {
   console.warn("Database connection failed, using in-memory storage fallback");
+} else {
+  console.log("Database connection established, using Supabase storage");
 }
+
+// Debug: Test storage initialization
+(async () => {
+  try {
+    const allSKUs = await storage.getAllSKUs();
+    console.log(`Storage initialized with ${allSKUs.length} SKUs`);
+    
+    const mechanicalSKUs = await storage.getSKUsByIndustry('mechanical_manufacturing');
+    console.log(`Found ${mechanicalSKUs.length} SKUs for mechanical_manufacturing industry`);
+  } catch (error) {
+    console.error('Storage initialization test failed:', error);
+  }
+})();
 
 export { storage };
