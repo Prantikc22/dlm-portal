@@ -271,9 +271,15 @@ export type Document = typeof documents.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Ticket = typeof tickets.$inferSelect;
 
+export const insertDocumentSchema = createInsertSchema(documents).omit({
+  id: true,
+  uploadedAt: true,
+});
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type InsertSupplierProfile = z.infer<typeof insertSupplierProfileSchema>;
 export type InsertRFQ = z.infer<typeof insertRFQSchema>;
 export type InsertQuote = z.infer<typeof insertQuoteSchema>;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;

@@ -5,9 +5,9 @@ import {
   users, companies, supplierProfiles, skus, rfqs, rfqItems, 
   supplierInvites, quotes, curatedOffers, orders, documents,
   type User, type Company, type SupplierProfile, type SKU, type RFQ, 
-  type Quote, type CuratedOffer, type Order,
+  type Quote, type CuratedOffer, type Order, type Document,
   type InsertUser, type InsertCompany, type InsertSupplierProfile, 
-  type InsertRFQ, type InsertQuote
+  type InsertRFQ, type InsertQuote, type InsertDocument
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -15,6 +15,9 @@ import { randomUUID } from "crypto";
 class InMemoryStorage implements IStorage {
   private users: User[] = [];
   private companies: Company[] = [];
+  private supplierProfiles: SupplierProfile[] = [];
+  private supplierInvites: any[] = [];
+  private documents: Document[] = [];
   private skus: SKU[] = [
     // Mechanical Manufacturing Industry
     {
@@ -235,10 +238,79 @@ class InMemoryStorage implements IStorage {
     return newCompany;
   }
 
-  // Stub implementations for other methods
-  async getSupplierProfile(): Promise<any> { return undefined; }
-  async createSupplierProfile(): Promise<any> { return {} as any; }
-  async getSuppliersByCapabilities(): Promise<any> { return []; }
+  async getSupplierProfile(companyId: string): Promise<SupplierProfile | undefined> {
+    return this.supplierProfiles.find(p => p.companyId === companyId);
+  }
+
+  async createSupplierProfile(profile: InsertSupplierProfile): Promise<SupplierProfile> {
+    const newProfile: SupplierProfile = {
+      id: randomUUID(),
+      companyId: profile.companyId,
+      capabilities: profile.capabilities || null,
+      machines: profile.machines || null,
+      moqDefault: profile.moqDefault || null,
+      capacityCalendar: profile.capacityCalendar || null,
+      certifications: profile.certifications || null,
+      verifiedStatus: profile.verifiedStatus || "unverified",
+      bankDetails: profile.bankDetails || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.supplierProfiles.push(newProfile);
+    return newProfile;
+  }
+
+  async getSuppliersByCapabilities(capabilities: string[]): Promise<Array<{ user: User; company: Company; profile: SupplierProfile }>> {
+    const suppliers = this.supplierProfiles.map(profile => {
+      const company = this.companies.find(c => c.id === profile.companyId);
+      const user = this.users.find(u => u.companyId === profile.companyId && u.role === "supplier");
+      
+      if (company && user) {
+        return { user, company, profile };
+      }
+      return null;
+    }).filter(Boolean) as Array<{ user: User; company: Company; profile: SupplierProfile }>;
+
+    if (capabilities.length === 0) {
+      return suppliers;
+    }
+
+    // Filter by capabilities
+    return suppliers.filter(supplier => {
+      const profileCapabilities = supplier.profile.capabilities as string[] || [];
+      return capabilities.some(cap => profileCapabilities.includes(cap));
+    });
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    const newDocument: Document = {
+      id: randomUUID(),
+      companyId: document.companyId || null,
+      docType: document.docType,
+      fileRef: document.fileRef,
+      metadata: document.metadata || null,
+      uploadedBy: document.uploadedBy || null,
+      uploadedAt: new Date(),
+    };
+    this.documents.push(newDocument);
+    return newDocument;
+  }
+
+  async getDocumentsByCompany(companyId: string): Promise<Document[]> {
+    return this.documents.filter(d => d.companyId === companyId);
+  }
+
+  async getDocumentsByType(companyId: string, docType: string): Promise<Document[]> {
+    return this.documents.filter(d => d.companyId === companyId && d.docType === docType);
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    const index = this.documents.findIndex(d => d.id === id);
+    if (index !== -1) {
+      this.documents.splice(index, 1);
+    }
+  }
+
   async getAllSKUs(): Promise<SKU[]> { return this.skus; }
   async getSKUByCode(): Promise<any> { return undefined; }
   async getSKUsByIndustry(industry: string): Promise<SKU[]> {
@@ -271,16 +343,92 @@ class InMemoryStorage implements IStorage {
   async getRFQsByBuyer(buyerId: string): Promise<RFQ[]> {
     return this.rfqs.filter(r => r.buyerId === buyerId);
   }
-  async updateRFQStatus(): Promise<void> {}
-  async createQuote(): Promise<any> { return {} as any; }
-  async getQuotesByRFQ(): Promise<Quote[]> { return []; }
-  async getQuotesBySupplier(): Promise<Quote[]> { return []; }
-  async createSupplierInvite(): Promise<void> {}
-  async getSupplierInvites(): Promise<any> { return []; }
-  async createOrder(): Promise<any> { return {} as any; }
-  async getOrdersByBuyer(): Promise<Order[]> { return []; }
-  async getOrdersBySupplier(): Promise<Order[]> { return []; }
-  async updateOrderStatus(): Promise<void> {}
+  async updateRFQStatus(id: string, status: string): Promise<void> {
+    const rfq = this.rfqs.find(r => r.id === id);
+    if (rfq) {
+      rfq.status = status as any;
+      rfq.updatedAt = new Date();
+    }
+  }
+
+  async createQuote(quote: InsertQuote): Promise<Quote> {
+    const newQuote: Quote = {
+      id: randomUUID(),
+      rfqId: quote.rfqId,
+      supplierId: quote.supplierId,
+      quoteJson: quote.quoteJson,
+      status: quote.status || "draft",
+      createdAt: new Date(),
+    };
+    this.quotes.push(newQuote);
+    return newQuote;
+  }
+
+  async getQuotesByRFQ(rfqId: string): Promise<Quote[]> {
+    return this.quotes.filter(q => q.rfqId === rfqId);
+  }
+
+  async getQuotesBySupplier(supplierId: string): Promise<Quote[]> {
+    return this.quotes.filter(q => q.supplierId === supplierId);
+  }
+
+  async createSupplierInvite(rfqId: string, supplierId: string, invitedBy: string): Promise<void> {
+    const invite = {
+      id: randomUUID(),
+      rfqId,
+      supplierId,
+      invitedBy,
+      invitedAt: new Date(),
+      status: "invited" as const,
+      responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+    };
+    this.supplierInvites.push(invite);
+  }
+
+  async getSupplierInvites(supplierId: string): Promise<Array<{ invite: any; rfq: RFQ }>> {
+    const invites = this.supplierInvites.filter(invite => invite.supplierId === supplierId);
+    return invites.map(invite => {
+      const rfq = this.rfqs.find(r => r.id === invite.rfqId);
+      return { invite, rfq: rfq! };
+    }).filter(item => item.rfq); // Only return invites with valid RFQs
+  }
+  async createOrder(orderData: any): Promise<Order> {
+    const orderNumber = `ORD-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const newOrder: Order = {
+      id: randomUUID(),
+      orderNumber,
+      rfqId: orderData.rfqId,
+      curatedOfferId: orderData.curatedOfferId || null,
+      buyerId: orderData.buyerId,
+      adminId: orderData.adminId || null,
+      supplierId: orderData.supplierId || null,
+      status: orderData.status || "created",
+      depositPercent: orderData.depositPercent || 30,
+      depositPaid: orderData.depositPaid || false,
+      totalAmount: orderData.totalAmount || null,
+      escrowTxRef: orderData.escrowTxRef || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.orders.push(newOrder);
+    return newOrder;
+  }
+
+  async getOrdersByBuyer(buyerId: string): Promise<Order[]> {
+    return this.orders.filter(o => o.buyerId === buyerId);
+  }
+
+  async getOrdersBySupplier(supplierId: string): Promise<Order[]> {
+    return this.orders.filter(o => o.supplierId === supplierId);
+  }
+
+  async updateOrderStatus(id: string, status: string): Promise<void> {
+    const order = this.orders.find(o => o.id === id);
+    if (order) {
+      order.status = status as any;
+      order.updatedAt = new Date();
+    }
+  }
 }
 
 // Database connection setup  
@@ -316,6 +464,12 @@ export interface IStorage {
   getSupplierProfile(companyId: string): Promise<SupplierProfile | undefined>;
   createSupplierProfile(profile: InsertSupplierProfile): Promise<SupplierProfile>;
   getSuppliersByCapabilities(capabilities: string[]): Promise<Array<{ user: User; company: Company; profile: SupplierProfile }>>;
+
+  // Document management
+  createDocument(document: InsertDocument): Promise<Document>;
+  getDocumentsByCompany(companyId: string): Promise<Document[]>;
+  getDocumentsByType(companyId: string, docType: string): Promise<Document[]>;
+  deleteDocument(id: string): Promise<void>;
 
   // SKU management
   getAllSKUs(): Promise<SKU[]>;
@@ -398,6 +552,23 @@ export class SupabaseStorage implements IStorage {
       .where(eq(users.role, "supplier"));
     
     return result;
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    const result = await db.insert(documents).values(document).returning();
+    return result[0];
+  }
+
+  async getDocumentsByCompany(companyId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(eq(documents.companyId, companyId));
+  }
+
+  async getDocumentsByType(companyId: string, docType: string): Promise<Document[]> {
+    return await db.select().from(documents).where(and(eq(documents.companyId, companyId), eq(documents.docType, docType)));
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
   }
 
   async getAllSKUs(): Promise<SKU[]> {
@@ -606,6 +777,22 @@ class FallbackStorage implements IStorage {
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
     return this.withFallback(async (storage) => storage.updateOrderStatus(id, status));
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    return this.withFallback(async (storage) => storage.createDocument(document));
+  }
+
+  async getDocumentsByCompany(companyId: string): Promise<Document[]> {
+    return this.withFallback(async (storage) => storage.getDocumentsByCompany(companyId));
+  }
+
+  async getDocumentsByType(companyId: string, docType: string): Promise<Document[]> {
+    return this.withFallback(async (storage) => storage.getDocumentsByType(companyId, docType));
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.deleteDocument(id));
   }
 }
 

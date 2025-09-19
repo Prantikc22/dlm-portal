@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import { storage } from "./storage";
-import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema } from "@shared/schema";
+import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema } from "@shared/schema";
 import { z } from "zod";
 import { ZodError } from "zod";
 
@@ -318,6 +318,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(suppliers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch suppliers" });
+    }
+  });
+
+  // Document upload routes
+  app.post("/api/protected/documents/upload", authenticateUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user!.companyId) {
+        return res.status(400).json({ error: "Company required for document upload" });
+      }
+
+      const { docType, fileName, fileData, metadata } = req.body;
+      
+      if (!docType || !fileName || !fileData) {
+        return res.status(400).json({ error: "Document type, file name, and file data are required" });
+      }
+
+      // Validate docType allowlist
+      const allowedDocTypes = [
+        'company_registration',
+        'gst_certificate', 
+        'bank_statement',
+        'iso_certificate',
+        'product_samples',
+        'machine_photos'
+      ];
+      
+      if (!allowedDocTypes.includes(docType)) {
+        return res.status(400).json({ 
+          error: "Invalid document type",
+          details: `Allowed types: ${allowedDocTypes.join(', ')}`
+        });
+      }
+
+      // Validate file content type from metadata
+      if (!metadata || !metadata.fileType) {
+        return res.status(400).json({ error: "File type metadata required" });
+      }
+
+      const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+      if (!allowedMimeTypes.includes(metadata.fileType)) {
+        return res.status(400).json({ 
+          error: "Invalid file type",
+          details: "Only PDF, JPEG, and PNG files are allowed"
+        });
+      }
+
+      // Compute real byte size from base64 data
+      // Base64 adds ~33% overhead, but we need to account for data URL prefix
+      const base64Data = fileData.split(',')[1] || fileData; // Remove data URL prefix if present
+      const realByteSize = Math.ceil((base64Data.length * 3) / 4);
+
+      // Validate file size limits based on type
+      const isImage = metadata.fileType.startsWith('image/');
+      const maxSize = isImage ? 10 * 1024 * 1024 : 5 * 1024 * 1024; // 10MB for images, 5MB for documents
+      
+      if (realByteSize > maxSize) {
+        const maxSizeMB = maxSize / (1024 * 1024);
+        return res.status(413).json({ 
+          error: "File too large",
+          details: `Maximum file size is ${maxSizeMB}MB for ${isImage ? 'images' : 'documents'}`
+        });
+      }
+
+      // Validate against client-reported file size for consistency
+      if (metadata.fileSize && Math.abs(metadata.fileSize - realByteSize) > 1024) {
+        return res.status(400).json({ 
+          error: "File size mismatch",
+          details: "Client-reported size doesn't match actual file size"
+        });
+      }
+
+      // Create synthetic file reference (explicit that this is not real storage)
+      const fileRef = `synthetic://uploads/${req.user!.companyId}/${docType}/${Date.now()}-${fileName}`;
+
+      const documentData = insertDocumentSchema.parse({
+        companyId: req.user!.companyId,
+        docType,
+        fileRef,
+        metadata: {
+          ...metadata,
+          fileName,
+          fileSize: realByteSize, // Store actual byte size, not base64 length
+          fileSizeBytes: realByteSize,
+          uploadedAt: new Date().toISOString(),
+          storageType: 'synthetic', // Explicit marker for synthetic storage
+          validatedMimeType: metadata.fileType,
+          // Future: add fields for real storage like s3Key, cloudinaryId, etc.
+        },
+        uploadedBy: req.user!.id,
+      });
+
+      const document = await storage.createDocument(documentData);
+      
+      // TODO: In production, implement real file storage here:
+      // - Upload to Supabase Storage, AWS S3, or similar service
+      // - Store the real file URL/key in fileRef
+      // - Implement virus scanning if required
+      // - Generate thumbnails for images if needed
+      
+      res.json({
+        ...document,
+        message: "Document uploaded successfully (synthetic storage)"
+      });
+    } catch (error) {
+      console.error('Document upload error:', error);
+      
+      if (error instanceof ZodError) {
+        const validationErrors = error.errors.map(err => ({
+          field: err.path.join('.'),
+          message: err.message
+        }));
+        
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validationErrors 
+        });
+      }
+      
+      res.status(500).json({ error: "Failed to upload document" });
+    }
+  });
+
+  app.get("/api/protected/documents", authenticateUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      if (!req.user!.companyId) {
+        return res.status(400).json({ error: "Company required" });
+      }
+
+      const documents = await storage.getDocumentsByCompany(req.user!.companyId);
+      res.json(documents);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.delete("/api/protected/documents/:id", authenticateUser, async (req: AuthenticatedRequest, res) => {
+    try {
+      // In a real implementation, you would also delete the actual file from storage
+      await storage.deleteDocument(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete document" });
     }
   });
 
