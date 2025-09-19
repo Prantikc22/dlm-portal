@@ -154,16 +154,16 @@
 
 /* Professional button styles */
 .btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary;
+  @apply bg-primary text-primary-foreground hover:opacity-90 focus-visible:ring-primary;
 }
 
 .btn-secondary {
-  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-visible:ring-secondary;
+  @apply bg-secondary text-secondary-foreground hover:opacity-80 focus-visible:ring-secondary;
 }
 
 /* Card hover effects */
 .card-hover {
-  @apply transition-all duration-200 hover:shadow-md hover:border-primary/20;
+  @apply transition-all duration-200 hover:shadow-md hover:border-primary hover:border-opacity-20;
 }
 
 /* Status indicators */
@@ -190,7 +190,7 @@
 
 /* Table styles */
 .table-header {
-  @apply bg-muted/50 text-muted-foreground font-medium text-sm;
+  @apply bg-muted bg-opacity-50 text-muted-foreground font-medium text-sm;
 }
 
 .table-cell {
