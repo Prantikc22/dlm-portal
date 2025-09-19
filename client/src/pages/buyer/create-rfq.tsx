@@ -58,6 +58,7 @@ export default function CreateRFQ() {
         industry: selectedIndustry,
         sku: selectedSKU,
         items: [{ ...data, skuCode: selectedSKU.code }],
+        files: data.files || [], // Include uploaded files
       },
       ndaRequired: data.ndaRequired,
       confidential: data.confidential,
@@ -66,6 +67,12 @@ export default function CreateRFQ() {
         max: data.budgetMax,
       } : null,
     };
+
+    console.log('🔥 Submitting RFQ with data:', { 
+      title: rfqData.title, 
+      filesCount: data.files?.length || 0,
+      industry: selectedIndustry 
+    });
 
     createRFQMutation.mutate(rfqData);
   };
