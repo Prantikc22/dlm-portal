@@ -42,22 +42,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
+      const { email, password, name, role, companyName } = req.body;
+      
+      if (!email || !password || !name || !role || !companyName) {
+        return res.status(400).json({ error: "All fields are required" });
+      }
+      
+      // Validate role - only allow buyer and supplier registration
+      if (role !== "buyer" && role !== "supplier") {
+        return res.status(400).json({ error: "Invalid role. Only buyer and supplier registration allowed." });
+      }
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
       
       // Hash the password before storing
       const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
       
+      // Create company first
+      const company = await storage.createCompany({ name: companyName });
+      
+      // Create user with company reference - enforce validated role
       const userToCreate = {
-        ...userData,
-        password: hashedPassword
+        email,
+        password: hashedPassword,
+        name,
+        role: role as "buyer" | "supplier", // Type-safe role assignment
+        companyId: company.id
       };
       
       const user = await storage.createUser(userToCreate);
-      res.json({ user: { id: user.id, email: user.email, role: user.role } });
+      res.json({ user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId } });
     } catch (error) {
       console.error('Registration error:', error);
-      res.status(400).json({ error: "Invalid user data" });
+      res.status(500).json({ error: "Registration failed. Please try again." });
     }
   });
 

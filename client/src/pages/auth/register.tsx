@@ -14,6 +14,7 @@ export default function Register() {
     name: '',
     password: '',
     role: 'buyer' as 'buyer' | 'supplier',
+    companyName: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
@@ -85,6 +86,17 @@ export default function Register() {
                 required
                 minLength={6}
                 data-testid="input-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                value={formData.companyName}
+                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                placeholder="Enter your company name"
+                required
+                data-testid="input-company"
               />
             </div>
             <div>

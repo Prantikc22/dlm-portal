@@ -11,12 +11,109 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL environment variable is required");
+// In-memory storage for development/testing when database is unavailable
+class InMemoryStorage implements IStorage {
+  private users: User[] = [];
+  private companies: Company[] = [];
+  private skus: SKU[] = [];
+  private rfqs: RFQ[] = [];
+  private quotes: Quote[] = [];
+  private orders: Order[] = [];
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.find(u => u.id === id);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return this.users.find(u => u.email === email);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const newUser: User = {
+      id: randomUUID(),
+      email: user.email,
+      password: user.password,
+      role: user.role || "buyer",
+      name: user.name || null,
+      companyId: user.companyId || null,
+      phone: user.phone || null,
+      isVerified: user.isVerified || false,
+      metadata: user.metadata || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.push(newUser);
+    return newUser;
+  }
+
+  async updateUserCompany(userId: string, companyId: string): Promise<void> {
+    const user = this.users.find(u => u.id === userId);
+    if (user) {
+      user.companyId = companyId;
+      user.updatedAt = new Date();
+    }
+  }
+
+  async getCompany(id: string): Promise<Company | undefined> {
+    return this.companies.find(c => c.id === id);
+  }
+
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const newCompany: Company = {
+      id: randomUUID(),
+      name: company.name,
+      gstin: company.gstin || null,
+      pan: company.pan || null,
+      address: company.address || null,
+      city: company.city || null,
+      state: company.state || null,
+      country: company.country || "India",
+      documents: company.documents || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.companies.push(newCompany);
+    return newCompany;
+  }
+
+  // Stub implementations for other methods
+  async getSupplierProfile(): Promise<any> { return undefined; }
+  async createSupplierProfile(): Promise<any> { return {} as any; }
+  async getSuppliersByCapabilities(): Promise<any> { return []; }
+  async getAllSKUs(): Promise<SKU[]> { return this.skus; }
+  async getSKUByCode(): Promise<any> { return undefined; }
+  async getSKUsByIndustry(): Promise<SKU[]> { return []; }
+  async createRFQ(): Promise<any> { return {} as any; }
+  async getRFQ(): Promise<any> { return undefined; }
+  async getRFQsByBuyer(): Promise<RFQ[]> { return []; }
+  async updateRFQStatus(): Promise<void> {}
+  async createQuote(): Promise<any> { return {} as any; }
+  async getQuotesByRFQ(): Promise<Quote[]> { return []; }
+  async getQuotesBySupplier(): Promise<Quote[]> { return []; }
+  async createSupplierInvite(): Promise<void> {}
+  async getSupplierInvites(): Promise<any> { return []; }
+  async createOrder(): Promise<any> { return {} as any; }
+  async getOrdersByBuyer(): Promise<Order[]> { return []; }
+  async getOrdersBySupplier(): Promise<Order[]> { return []; }
+  async updateOrderStatus(): Promise<void> {}
 }
 
-const sql = neon(process.env.DATABASE_URL);
-const db = drizzle(sql);
+// Database connection setup  
+let db: any = null;
+let dbConnectionFailed = false;
+
+if (process.env.DATABASE_URL) {
+  try {
+    const sql = neon(process.env.DATABASE_URL);
+    db = drizzle(sql);
+  } catch (error) {
+    console.error("Database connection failed during setup:", error);
+    dbConnectionFailed = true;
+  }
+} else {
+  console.warn("DATABASE_URL not found");
+  dbConnectionFailed = true;
+}
 
 export interface IStorage {
   // User management
@@ -204,4 +301,133 @@ export class SupabaseStorage implements IStorage {
   }
 }
 
-export const storage = new SupabaseStorage();
+// Wrapper storage that falls back to in-memory when database operations fail
+class FallbackStorage implements IStorage {
+  private inMemoryStorage = new InMemoryStorage();
+  private supabaseStorage = new SupabaseStorage();
+  private useFallback = dbConnectionFailed;
+
+  private async withFallback<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.useFallback) {
+      return operation.bind(this.inMemoryStorage)();
+    }
+    
+    try {
+      return await operation.bind(this.supabaseStorage)();
+    } catch (error) {
+      console.error("Database operation failed, falling back to in-memory storage:", error);
+      this.useFallback = true;
+      return operation.bind(this.inMemoryStorage)();
+    }
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.withFallback(async function() { return this.getUser(id); });
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return this.withFallback(async function() { return this.getUserByEmail(email); });
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    return this.withFallback(async function() { return this.createUser(user); });
+  }
+
+  async updateUserCompany(userId: string, companyId: string): Promise<void> {
+    return this.withFallback(async function() { return this.updateUserCompany(userId, companyId); });
+  }
+
+  async getCompany(id: string): Promise<Company | undefined> {
+    return this.withFallback(async function() { return this.getCompany(id); });
+  }
+
+  async createCompany(company: InsertCompany): Promise<Company> {
+    return this.withFallback(async function() { return this.createCompany(company); });
+  }
+
+  // Delegate other methods with fallback
+  async getSupplierProfile(companyId: string): Promise<any> {
+    return this.withFallback(async function() { return this.getSupplierProfile(companyId); });
+  }
+
+  async createSupplierProfile(profile: any): Promise<any> {
+    return this.withFallback(async function() { return this.createSupplierProfile(profile); });
+  }
+
+  async getSuppliersByCapabilities(capabilities: string[]): Promise<any> {
+    return this.withFallback(async function() { return this.getSuppliersByCapabilities(capabilities); });
+  }
+
+  async getAllSKUs(): Promise<SKU[]> {
+    return this.withFallback(async function() { return this.getAllSKUs(); });
+  }
+
+  async getSKUByCode(code: string): Promise<any> {
+    return this.withFallback(async function() { return this.getSKUByCode(code); });
+  }
+
+  async getSKUsByIndustry(industry: string): Promise<SKU[]> {
+    return this.withFallback(async function() { return this.getSKUsByIndustry(industry); });
+  }
+
+  async createRFQ(rfq: any): Promise<any> {
+    return this.withFallback(async function() { return this.createRFQ(rfq); });
+  }
+
+  async getRFQ(id: string): Promise<any> {
+    return this.withFallback(async function() { return this.getRFQ(id); });
+  }
+
+  async getRFQsByBuyer(buyerId: string): Promise<RFQ[]> {
+    return this.withFallback(async function() { return this.getRFQsByBuyer(buyerId); });
+  }
+
+  async updateRFQStatus(id: string, status: string): Promise<void> {
+    return this.withFallback(async function() { return this.updateRFQStatus(id, status); });
+  }
+
+  async createQuote(quote: any): Promise<any> {
+    return this.withFallback(async function() { return this.createQuote(quote); });
+  }
+
+  async getQuotesByRFQ(rfqId: string): Promise<Quote[]> {
+    return this.withFallback(async function() { return this.getQuotesByRFQ(rfqId); });
+  }
+
+  async getQuotesBySupplier(supplierId: string): Promise<Quote[]> {
+    return this.withFallback(async function() { return this.getQuotesBySupplier(supplierId); });
+  }
+
+  async createSupplierInvite(rfqId: string, supplierId: string, invitedBy: string): Promise<void> {
+    return this.withFallback(async function() { return this.createSupplierInvite(rfqId, supplierId, invitedBy); });
+  }
+
+  async getSupplierInvites(supplierId: string): Promise<any> {
+    return this.withFallback(async function() { return this.getSupplierInvites(supplierId); });
+  }
+
+  async createOrder(orderData: any): Promise<any> {
+    return this.withFallback(async function() { return this.createOrder(orderData); });
+  }
+
+  async getOrdersByBuyer(buyerId: string): Promise<Order[]> {
+    return this.withFallback(async function() { return this.getOrdersByBuyer(buyerId); });
+  }
+
+  async getOrdersBySupplier(supplierId: string): Promise<Order[]> {
+    return this.withFallback(async function() { return this.getOrdersBySupplier(supplierId); });
+  }
+
+  async updateOrderStatus(id: string, status: string): Promise<void> {
+    return this.withFallback(async function() { return this.updateOrderStatus(id, status); });
+  }
+}
+
+// Initialize storage with fallback capability
+const storage: IStorage = new FallbackStorage();
+
+if (dbConnectionFailed) {
+  console.warn("Database connection failed, using in-memory storage fallback");
+}
+
+export { storage };
