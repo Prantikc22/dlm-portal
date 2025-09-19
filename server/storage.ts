@@ -250,17 +250,13 @@ class InMemoryStorage implements IStorage {
       id: randomUUID(),
       rfqNumber,
       buyerId: rfq.buyerId,
-      companyId: rfq.companyId,
       title: rfq.title,
-      description: rfq.description || null,
-      industry: rfq.industry,
-      category: rfq.category,
-      specifications: rfq.specifications,
-      quantity: rfq.quantity,
-      preferredDeliveryDate: rfq.preferredDeliveryDate || null,
-      attachments: rfq.attachments || null,
-      priority: rfq.priority || "standard",
-      status: "open",
+      status: rfq.status || "draft",
+      details: rfq.details,
+      files: rfq.files || null,
+      ndaRequired: rfq.ndaRequired || false,
+      confidential: rfq.confidential || false,
+      budgetRange: rfq.budgetRange || null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -537,15 +533,15 @@ class FallbackStorage implements IStorage {
 
   // Delegate other methods with fallback
   async getSupplierProfile(companyId: string): Promise<any> {
-    return this.withFallback(async function() { return this.getSupplierProfile(companyId); });
+    return this.withFallback(async (storage) => storage.getSupplierProfile(companyId));
   }
 
   async createSupplierProfile(profile: any): Promise<any> {
-    return this.withFallback(async function() { return this.createSupplierProfile(profile); });
+    return this.withFallback(async (storage) => storage.createSupplierProfile(profile));
   }
 
   async getSuppliersByCapabilities(capabilities: string[]): Promise<any> {
-    return this.withFallback(async function() { return this.getSuppliersByCapabilities(capabilities); });
+    return this.withFallback(async (storage) => storage.getSuppliersByCapabilities(capabilities));
   }
 
   async getAllSKUs(): Promise<SKU[]> {
@@ -561,55 +557,55 @@ class FallbackStorage implements IStorage {
   }
 
   async createRFQ(rfq: any): Promise<any> {
-    return this.withFallback(async function() { return this.createRFQ(rfq); });
+    return this.withFallback(async (storage) => storage.createRFQ(rfq));
   }
 
   async getRFQ(id: string): Promise<any> {
-    return this.withFallback(async function() { return this.getRFQ(id); });
+    return this.withFallback(async (storage) => storage.getRFQ(id));
   }
 
   async getRFQsByBuyer(buyerId: string): Promise<RFQ[]> {
-    return this.withFallback(async function() { return this.getRFQsByBuyer(buyerId); });
+    return this.withFallback(async (storage) => storage.getRFQsByBuyer(buyerId));
   }
 
   async updateRFQStatus(id: string, status: string): Promise<void> {
-    return this.withFallback(async function() { return this.updateRFQStatus(id, status); });
+    return this.withFallback(async (storage) => storage.updateRFQStatus(id, status));
   }
 
   async createQuote(quote: any): Promise<any> {
-    return this.withFallback(async function() { return this.createQuote(quote); });
+    return this.withFallback(async (storage) => storage.createQuote(quote));
   }
 
   async getQuotesByRFQ(rfqId: string): Promise<Quote[]> {
-    return this.withFallback(async function() { return this.getQuotesByRFQ(rfqId); });
+    return this.withFallback(async (storage) => storage.getQuotesByRFQ(rfqId));
   }
 
   async getQuotesBySupplier(supplierId: string): Promise<Quote[]> {
-    return this.withFallback(async function() { return this.getQuotesBySupplier(supplierId); });
+    return this.withFallback(async (storage) => storage.getQuotesBySupplier(supplierId));
   }
 
   async createSupplierInvite(rfqId: string, supplierId: string, invitedBy: string): Promise<void> {
-    return this.withFallback(async function() { return this.createSupplierInvite(rfqId, supplierId, invitedBy); });
+    return this.withFallback(async (storage) => storage.createSupplierInvite(rfqId, supplierId, invitedBy));
   }
 
   async getSupplierInvites(supplierId: string): Promise<any> {
-    return this.withFallback(async function() { return this.getSupplierInvites(supplierId); });
+    return this.withFallback(async (storage) => storage.getSupplierInvites(supplierId));
   }
 
   async createOrder(orderData: any): Promise<any> {
-    return this.withFallback(async function() { return this.createOrder(orderData); });
+    return this.withFallback(async (storage) => storage.createOrder(orderData));
   }
 
   async getOrdersByBuyer(buyerId: string): Promise<Order[]> {
-    return this.withFallback(async function() { return this.getOrdersByBuyer(buyerId); });
+    return this.withFallback(async (storage) => storage.getOrdersByBuyer(buyerId));
   }
 
   async getOrdersBySupplier(supplierId: string): Promise<Order[]> {
-    return this.withFallback(async function() { return this.getOrdersBySupplier(supplierId); });
+    return this.withFallback(async (storage) => storage.getOrdersBySupplier(supplierId));
   }
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
-    return this.withFallback(async function() { return this.updateOrderStatus(id, status); });
+    return this.withFallback(async (storage) => storage.updateOrderStatus(id, status));
   }
 }
 

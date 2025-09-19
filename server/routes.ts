@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema } from "@shared/schema";
 import { z } from "zod";
+import { ZodError } from "zod";
 
 // Simple session middleware for demo - in production use proper auth
 interface AuthenticatedRequest extends Request {
@@ -195,9 +196,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       title: req.body?.title 
     });
     try {
+      // Security: Remove any client-provided buyerId to prevent spoofing attacks
+      const { buyerId: _ignored, ...requestBody } = req.body;
+      
+      // Enforce server-side buyerId assignment from authenticated user
       const rfqData = insertRFQSchema.parse({
-        ...req.body,
-        buyerId: req.user!.id
+        ...requestBody,
+        buyerId: req.user!.id  // Always use authenticated user's ID
       });
       
       const rfq = await storage.createRFQ(rfqData);
@@ -205,6 +210,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(rfq);
     } catch (error) {
       console.error("❌ RFQ Creation Failed:", error);
+      
+      if (error instanceof ZodError) {
+        // Extract meaningful validation error messages
+        const validationErrors = error.errors.map(err => ({
+          field: err.path.join('.'),
+          message: err.message
+        }));
+        
+        return res.status(400).json({ 
+          error: "Validation failed", 
+          details: validationErrors 
+        });
+      }
+      
       res.status(400).json({ error: "Invalid RFQ data" });
     }
   });

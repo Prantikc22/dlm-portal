@@ -231,6 +231,21 @@ export const insertRFQSchema = createInsertSchema(rfqs).omit({
   rfqNumber: true,
   createdAt: true,
   updatedAt: true,
+}).refine((data) => {
+  // Validate that details.items exists and is an array with at least one item
+  if (!data.details || typeof data.details !== 'object') {
+    return false;
+  }
+  
+  const details = data.details as any;
+  if (!Array.isArray(details.items) || details.items.length === 0) {
+    return false;
+  }
+  
+  // Validate that each item has a skuCode
+  return details.items.every((item: any) => item && typeof item.skuCode === 'string' && item.skuCode.trim().length > 0);
+}, {
+  message: "RFQ must have at least one item in details.items, and each item must have a valid skuCode",
 });
 
 export const insertQuoteSchema = createInsertSchema(quotes).omit({
