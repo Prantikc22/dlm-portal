@@ -8,7 +8,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const [, setLocation] = useLocation();
@@ -19,7 +22,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await login(email);
+      await login(formData.email, formData.password);
       setLocation('/dashboard');
       toast({
         title: "Login successful",
@@ -28,7 +31,7 @@ export default function Login() {
     } catch (error) {
       toast({
         title: "Login failed",
-        description: "Please check your email and try again.",
+        description: "Please check your email and password and try again.",
         variant: "destructive",
       });
     } finally {
@@ -50,11 +53,23 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="Enter your email"
                 required
                 data-testid="input-email"
+              />
+            </div>
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Enter your password"
+                required
+                data-testid="input-password"
               />
             </div>
             <Button

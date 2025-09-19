@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema } from "@shared/schema";
 import { z } from "zod";
@@ -42,22 +43,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
+      
+      // Hash the password before storing
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
+      
+      const userToCreate = {
+        ...userData,
+        password: hashedPassword
+      };
+      
+      const user = await storage.createUser(userToCreate);
       res.json({ user: { id: user.id, email: user.email, role: user.role } });
     } catch (error) {
+      console.error('Registration error:', error);
       res.status(400).json({ error: "Invalid user data" });
     }
   });
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email } = req.body;
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+      
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        return res.status(401).json({ error: "User not found" });
+        return res.status(401).json({ error: "Invalid email or password" });
       }
+      
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+      
       res.json({ user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId } });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: "Login failed" });
     }
   });

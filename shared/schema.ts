@@ -23,6 +23,7 @@ export const ticketStatusEnum = pgEnum("ticket_status", ["open", "in_progress", 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   email: text("email").notNull().unique(),
+  password: text("password").notNull(),
   role: userRoleEnum("role").notNull().default("buyer"),
   name: text("name"),
   companyId: uuid("company_id").references(() => companies.id),

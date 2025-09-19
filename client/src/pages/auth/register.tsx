@@ -12,6 +12,7 @@ export default function Register() {
   const [formData, setFormData] = useState({
     email: '',
     name: '',
+    password: '',
     role: 'buyer' as 'buyer' | 'supplier',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -71,6 +72,19 @@ export default function Register() {
                 placeholder="Enter your email"
                 required
                 data-testid="input-email"
+              />
+            </div>
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Enter your password"
+                required
+                minLength={6}
+                data-testid="input-password"
               />
             </div>
             <div>
