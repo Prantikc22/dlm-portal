@@ -4,13 +4,80 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { authenticatedApiClient } from '@/lib/supabase';
 import { ORDER_STATUS_COLORS } from '@/lib/constants';
-import { ShoppingCart, Download, Eye } from 'lucide-react';
+import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Order, PaymentTransaction } from '@shared/schema';
 
 export default function BuyerOrders() {
+  const { toast } = useToast();
+  
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['/api/protected/orders'],
     queryFn: () => authenticatedApiClient.get('/api/protected/orders'),
   });
+
+  // Fetch payment transactions for orders
+  const { data: paymentTransactions = [] } = useQuery({
+    queryKey: ['/api/protected/buyer/payment-transactions'],
+    queryFn: () => authenticatedApiClient.get('/api/protected/buyer/payment-transactions'),
+  });
+
+  const getPaymentStatus = (orderId: string) => {
+    const orderTransactions = (paymentTransactions as PaymentTransaction[]).filter((tx: PaymentTransaction) => tx.orderId === orderId);
+    const completedPayments = orderTransactions.filter((tx: PaymentTransaction) => tx.status === 'completed');
+    const pendingPayments = orderTransactions.filter((tx: PaymentTransaction) => tx.status === 'pending');
+    
+    if (completedPayments.length === 0) return 'not_started';
+    if (pendingPayments.length > 0) return 'partial';
+    return 'completed';
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
+      case 'not_started':
+        return <Badge className="bg-red-100 text-red-800"><AlertCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+      default:
+        return <Badge variant="secondary">Unknown</Badge>;
+    }
+  };
+
+  const getPaymentActions = (order: Order) => {
+    const paymentStatus = getPaymentStatus(order.id);
+    const orderTransactions = (paymentTransactions as PaymentTransaction[]).filter((tx: PaymentTransaction) => tx.orderId === order.id);
+    const pendingTransaction = orderTransactions.find((tx: PaymentTransaction) => tx.status === 'pending');
+    
+    if (paymentStatus === 'not_started' || pendingTransaction) {
+      return (
+        <Button 
+          size="sm" 
+          variant="default"
+          onClick={() => handlePaymentAction(order, pendingTransaction)}
+          data-testid={`button-pay-order-${order.id}`}
+        >
+          <CreditCard className="h-4 w-4 mr-1" />
+          Pay Now
+        </Button>
+      );
+    }
+    
+    return null;
+  };
+
+  const handlePaymentAction = (order: Order, transaction: PaymentTransaction | undefined) => {
+    toast({
+      title: "Payment Initiated",
+      description: `Redirecting to payment gateway for order ${order.orderNumber}`,
+    });
+    // In a real app, this would redirect to Razorpay or other payment gateway
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
 
   return (
     <div className="p-8">
@@ -42,13 +109,14 @@ export default function BuyerOrders() {
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order Number</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">RFQ</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Amount</th>
-                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Status</th>
+                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order Status</th>
+                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Payment Status</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Created</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {orders.map((order: any) => (
+                  {(orders as Order[]).map((order: Order) => (
                     <tr key={order.id} data-testid={`row-order-${order.id}`}>
                       <td className="py-4 px-6 text-sm font-mono" data-testid={`text-order-number-${order.id}`}>
                         {order.orderNumber}
@@ -60,14 +128,18 @@ export default function BuyerOrders() {
                         ₹{order.totalAmount?.toLocaleString() || 'N/A'}
                       </td>
                       <td className="py-4 px-6">
-                        <Badge className={ORDER_STATUS_COLORS[order.status || 'created'] || ORDER_STATUS_COLORS.created}>
+                        <Badge className={ORDER_STATUS_COLORS[(order.status as keyof typeof ORDER_STATUS_COLORS) || 'created'] || ORDER_STATUS_COLORS.created}>
                           {(order.status || 'created').replace('_', ' ').toUpperCase()}
                         </Badge>
                       </td>
+                      <td className="py-4 px-6">
+                        {getPaymentStatusBadge(getPaymentStatus(order.id))}
+                      </td>
                       <td className="py-4 px-6 text-sm text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString()}
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="py-4 px-6 space-x-2">
+                        {getPaymentActions(order)}
                         <Button variant="ghost" size="sm" data-testid={`button-view-order-${order.id}`}>
                           <Eye className="h-4 w-4 mr-1" />
                           View

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Edit, Trash2, Send, Eye, FileText, DollarSign, Clock, Award } from 'lucide-react';
+import { Plus, Edit, Trash2, Send, Eye, FileText, DollarSign, Clock, Award, CreditCard, ExternalLink, Calendar, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,11 @@ const offerSchema = z.object({
   features: z.array(z.string()).min(1, 'At least one feature is required'),
   validityDays: z.number().min(1, 'Validity must be at least 1 day'),
   description: z.string().optional(),
+  // Payment fields
+  paymentLink: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  advancePaymentPercentage: z.number().min(0).max(100).optional(),
+  paymentDeadlineDays: z.number().min(1, 'Payment deadline must be at least 1 day').optional(),
+  paymentTerms: z.string().optional(),
 });
 
 type OfferForm = z.infer<typeof offerSchema>;
@@ -34,6 +39,7 @@ export default function AdminOfferComposer() {
   const [selectedQuotes, setSelectedQuotes] = useState<any[]>([]);
   const [showOfferDialog, setShowOfferDialog] = useState(false);
   const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [calculatedPayments, setCalculatedPayments] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -53,12 +59,21 @@ export default function AdminOfferComposer() {
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/offers'),
   });
 
+  // Payment configurations for calculations
+  const { data: paymentConfigs = [] } = useQuery({
+    queryKey: ['/api/protected/admin/payment-configurations'],
+    queryFn: () => authenticatedApiClient.get('/api/protected/admin/payment-configurations'),
+  });
+
   const form = useForm<OfferForm>({
     resolver: zodResolver(offerSchema),
     defaultValues: {
       leadTimeDays: 14,
       validityDays: 30,
       features: [],
+      advancePaymentPercentage: 30,
+      paymentDeadlineDays: 7,
+      paymentTerms: 'Payment due within specified deadline. Late payments may incur additional charges.',
     },
   });
 
@@ -107,8 +122,18 @@ export default function AdminOfferComposer() {
     rfq.status === 'invited' || rfq.status === 'under_review'
   );
 
+  // Calculate payment amounts based on configuration
+  const calculatePaymentAmounts = (totalPrice: number, advancePercentage: number = 30) => {
+    const advanceAmount = Math.round(totalPrice * (advancePercentage / 100));
+    const finalAmount = totalPrice - advanceAmount;
+    return { advanceAmount, finalAmount, totalPrice };
+  };
+
   const handleSubmitOffer = (data: OfferForm) => {
     if (!selectedRFQ) return;
+
+    const totalPrice = data.unitPrice * (selectedRFQ.details?.items?.[0]?.quantity || 1);
+    const paymentAmounts = calculatePaymentAmounts(totalPrice, data.advancePaymentPercentage);
 
     const offerData = {
       rfqId: selectedRFQ.id,
@@ -121,8 +146,14 @@ export default function AdminOfferComposer() {
         features: data.features,
         description: data.description,
         validityDays: data.validityDays,
-        totalPrice: data.unitPrice * (selectedRFQ.details?.items?.[0]?.quantity || 1),
+        totalPrice: paymentAmounts.totalPrice,
       },
+      // Payment information
+      paymentLink: data.paymentLink || null,
+      advancePaymentAmount: paymentAmounts.advanceAmount.toString(),
+      finalPaymentAmount: paymentAmounts.finalAmount.toString(),
+      paymentDeadline: data.paymentDeadlineDays ? new Date(Date.now() + data.paymentDeadlineDays * 24 * 60 * 60 * 1000).toISOString() : null,
+      paymentTerms: data.paymentTerms || null,
       supplierIndicators: {
         quotesUsed: selectedQuotes.length,
         averagePrice: selectedQuotes.reduce((sum: number, q: any) => sum + (q.quoteJson?.unitPrice || 0), 0) / selectedQuotes.length || 0,
@@ -548,6 +579,133 @@ export default function AdminOfferComposer() {
                                 )}
                               />
 
+                              {/* Payment Configuration Section */}
+                              <div className="border-t pt-6">
+                                <div className="flex items-center space-x-2 mb-4">
+                                  <CreditCard className="h-5 w-5 text-blue-600" />
+                                  <h3 className="text-lg font-semibold">Payment Configuration</h3>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                  <FormField
+                                    control={form.control}
+                                    name="paymentLink"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>Payment Link (Optional)</FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            placeholder="https://razorpay.me/your-payment-link"
+                                            {...field}
+                                            data-testid="input-payment-link"
+                                          />
+                                        </FormControl>
+                                        <p className="text-xs text-muted-foreground">
+                                          External payment link for Razorpay or other gateways
+                                        </p>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                      control={form.control}
+                                      name="advancePaymentPercentage"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Advance Payment (%)</FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              placeholder="30"
+                                              {...field}
+                                              onChange={(e) => {
+                                                const value = parseFloat(e.target.value) || 0;
+                                                field.onChange(value);
+                                                // Calculate and update payment preview
+                                                const totalPrice = form.getValues('unitPrice') * (selectedRFQ?.details?.items?.[0]?.quantity || 1);
+                                                setCalculatedPayments(calculatePaymentAmounts(totalPrice, value));
+                                              }}
+                                              data-testid="input-advance-percentage"
+                                            />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={form.control}
+                                      name="paymentDeadlineDays"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <FormLabel>Payment Deadline (Days)</FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              placeholder="7"
+                                              {...field}
+                                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                              data-testid="input-payment-deadline"
+                                            />
+                                          </FormControl>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                  </div>
+
+                                  <FormField
+                                    control={form.control}
+                                    name="paymentTerms"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>Payment Terms</FormLabel>
+                                        <FormControl>
+                                          <Textarea
+                                            placeholder="Payment terms and conditions..."
+                                            {...field}
+                                            data-testid="textarea-payment-terms"
+                                          />
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+
+                                  {/* Payment Amount Preview */}
+                                  {calculatedPayments && (
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Payment Breakdown Preview</h4>
+                                      <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div>
+                                          <p className="text-blue-700 dark:text-blue-300">Advance Payment</p>
+                                          <p className="font-bold text-blue-900 dark:text-blue-100">
+                                            ₹{calculatedPayments.advanceAmount.toLocaleString()}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <p className="text-blue-700 dark:text-blue-300">Final Payment</p>
+                                          <p className="font-bold text-blue-900 dark:text-blue-100">
+                                            ₹{calculatedPayments.finalAmount.toLocaleString()}
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <p className="text-blue-700 dark:text-blue-300">Total Amount</p>
+                                          <p className="font-bold text-blue-900 dark:text-blue-100">
+                                            ₹{calculatedPayments.totalPrice.toLocaleString()}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
                               <div className="flex justify-end space-x-2">
                                 <Button
                                   type="button"
@@ -649,7 +807,7 @@ export default function AdminOfferComposer() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-4 gap-4 text-sm">
+                          <div className="grid grid-cols-4 gap-4 text-sm mb-3">
                             <div>
                               <p className="text-muted-foreground">Price</p>
                               <p className="font-medium">₹{offer.details?.unitPrice?.toLocaleString()}</p>
@@ -668,11 +826,71 @@ export default function AdminOfferComposer() {
                             </div>
                           </div>
 
+                          {/* Payment Information */}
+                          {(offer.advancePaymentAmount || offer.paymentLink) && (
+                            <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <CreditCard className="h-4 w-4 text-green-600" />
+                                <h4 className="font-medium text-green-900 dark:text-green-100">Payment Details</h4>
+                              </div>
+                              <div className="grid grid-cols-3 gap-4 text-sm">
+                                {offer.advancePaymentAmount && (
+                                  <div>
+                                    <p className="text-green-700 dark:text-green-300">Advance Payment</p>
+                                    <p className="font-bold text-green-900 dark:text-green-100">
+                                      ₹{parseFloat(offer.advancePaymentAmount).toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                {offer.finalPaymentAmount && (
+                                  <div>
+                                    <p className="text-green-700 dark:text-green-300">Final Payment</p>
+                                    <p className="font-bold text-green-900 dark:text-green-100">
+                                      ₹{parseFloat(offer.finalPaymentAmount).toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                                {offer.paymentDeadline && (
+                                  <div>
+                                    <p className="text-green-700 dark:text-green-300">Payment Deadline</p>
+                                    <p className="font-bold text-green-900 dark:text-green-100">
+                                      {new Date(offer.paymentDeadline).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              {offer.paymentLink && (
+                                <div className="mt-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-900/30"
+                                    data-testid={`button-payment-link-${offer.id}`}
+                                  >
+                                    <ExternalLink className="h-3 w-3 mr-1" />
+                                    Payment Link
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div className="flex justify-end space-x-2">
                             <Button variant="ghost" size="sm" data-testid={`button-view-offer-${offer.id}`}>
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
+                            {offer.paymentLink && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(offer.paymentLink, '_blank')}
+                                data-testid={`button-open-payment-${offer.id}`}
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Payment
+                              </Button>
+                            )}
                             {!offer.publishedAt && (
                               <Button
                                 size="sm"

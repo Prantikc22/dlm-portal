@@ -1,11 +1,41 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Shield, Award } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Clock, Shield, Award, CreditCard, ExternalLink, Calendar, DollarSign } from 'lucide-react';
+import { authenticatedApiClient } from '@/lib/supabase';
+import { useToast } from '@/hooks/use-toast';
+import { CuratedOffer } from '@shared/schema';
+
+// Interface for offer structure used in the component
+interface OfferData {
+  id: string;
+  rfqId: string;
+  rfqTitle: string;
+  type: string;
+  price: number;
+  leadTime: number;
+  warranty: string;
+  quality: string;
+  features: string[];
+  recommended: boolean;
+}
 
 export default function BuyerOffers() {
-  // Mock offers data - in real app this would come from API
-  const offers = [
+  const [selectedOffer, setSelectedOffer] = useState<OfferData | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const { toast } = useToast();
+
+  // Fetch actual offers from API
+  const { data: offers = [], isLoading } = useQuery({
+    queryKey: ['/api/protected/buyer/offers'],
+    queryFn: () => authenticatedApiClient.get('/api/protected/buyer/offers'),
+  });
+
+  // Sample offers data with payment information for demo
+  const sampleOffers = [
     {
       id: '1',
       rfqId: 'RFQ-2024-001',
@@ -44,6 +74,32 @@ export default function BuyerOffers() {
     },
   ];
 
+  const displayOffers = offers.length > 0 ? offers : sampleOffers;
+
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+  const calculatePaymentBreakdown = (totalPrice: number, advancePercentage: number = 30) => {
+    const advanceAmount = Math.round(totalPrice * (advancePercentage / 100));
+    const finalAmount = totalPrice - advanceAmount;
+    return { advanceAmount, finalAmount, totalPrice };
+  };
+
+  const handleAcceptOffer = (offer: OfferData) => {
+    setSelectedOffer(offer);
+    setShowPaymentDialog(true);
+  };
+
+  const handlePaymentAction = (offer: OfferData, paymentType: 'advance' | 'final') => {
+    // In a real app, this would initiate payment through Razorpay or other gateway
+    toast({
+      title: "Payment Initiated",
+      description: `${paymentType === 'advance' ? 'Advance' : 'Final'} payment process started for ${offer.type} offer`,
+    });
+    setShowPaymentDialog(false);
+  };
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -61,7 +117,7 @@ export default function BuyerOffers() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {offers.map((offer) => (
+              {(displayOffers as OfferData[]).map((offer: OfferData) => (
                 <Card 
                   key={offer.id} 
                   className={`relative ${offer.recommended ? 'border-primary shadow-lg' : ''}`}
@@ -102,11 +158,41 @@ export default function BuyerOffers() {
                       <div>
                         <p className="text-sm font-medium mb-2">Features:</p>
                         <div className="flex flex-wrap gap-1">
-                          {offer.features.map((feature, index) => (
+                          {offer.features.map((feature: string, index: number) => (
                             <Badge key={index} variant="secondary" className="text-xs">
                               {feature}
                             </Badge>
                           ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Payment Information */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <CreditCard className="h-4 w-4 text-blue-600" />
+                        <h4 className="font-medium text-blue-900 dark:text-blue-100">Payment Structure</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-blue-700 dark:text-blue-300">Advance (30%)</p>
+                          <p className="font-bold text-blue-900 dark:text-blue-100">
+                            {formatCurrency(calculatePaymentBreakdown(offer.price * 50).advanceAmount)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-blue-700 dark:text-blue-300">Final (70%)</p>
+                          <p className="font-bold text-blue-900 dark:text-blue-100">
+                            {formatCurrency(calculatePaymentBreakdown(offer.price * 50).finalAmount)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-blue-300 dark:border-blue-700">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-700 dark:text-blue-300 text-sm">Total Order Value</span>
+                          <span className="font-bold text-blue-900 dark:text-blue-100">
+                            {formatCurrency(offer.price * 50)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -118,9 +204,11 @@ export default function BuyerOffers() {
                       <Button 
                         className="w-full"
                         variant={offer.recommended ? "default" : "outline"}
+                        onClick={() => handleAcceptOffer(offer)}
                         data-testid={`button-accept-offer-${offer.id}`}
                       >
-                        Accept Offer & Pay Deposit
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Accept Offer & Pay
                       </Button>
                     </div>
                   </CardContent>
@@ -130,6 +218,87 @@ export default function BuyerOffers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Complete Payment</DialogTitle>
+          </DialogHeader>
+          
+          {selectedOffer && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <h3 className="font-medium mb-2">{selectedOffer.type} Offer</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  RFQ: {selectedOffer.rfqTitle}
+                </p>
+                <div className="text-2xl font-bold">{formatCurrency(selectedOffer.price * 50)}</div>
+                <p className="text-sm text-muted-foreground">Total Order Value</p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">Advance Payment (30%)</p>
+                    <p className="text-sm text-muted-foreground">Required to start production</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price * 50).advanceAmount)}</p>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handlePaymentAction(selectedOffer, 'advance')}
+                      data-testid="button-pay-advance"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Pay Now
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div>
+                    <p className="font-medium text-muted-foreground">Final Payment (70%)</p>
+                    <p className="text-sm text-muted-foreground">Due on delivery</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-muted-foreground">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price * 50).finalAmount)}</p>
+                    <p className="text-xs text-muted-foreground">Pay later</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-yellow-600" />
+                  <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                    Payment deadline: 7 days from acceptance
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setShowPaymentDialog(false)}
+                  data-testid="button-cancel-payment"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={() => handlePaymentAction(selectedOffer, 'advance')}
+                  data-testid="button-proceed-payment"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Proceed to Pay
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

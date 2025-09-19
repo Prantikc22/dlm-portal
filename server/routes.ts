@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
-import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, insertNotificationSchema, supplierVerificationEnum } from "@shared/schema";
+import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, insertNotificationSchema, insertPaymentMethodSchema, insertPaymentConfigurationSchema, insertPaymentTransactionSchema, supplierVerificationEnum } from "@shared/schema";
 import { z } from "zod";
 import { ZodError } from "zod";
 
@@ -886,6 +886,300 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error('Create notification error:', error);
       res.status(500).json({ error: "Failed to create notification" });
+    }
+  });
+
+  // Payment Management Routes
+  
+  // Admin Payment Method Management
+  app.get("/api/protected/admin/payment-methods", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const methods = await storage.getPaymentMethods();
+      res.json(methods);
+    } catch (error) {
+      console.error('Fetch payment methods error:', error);
+      res.status(500).json({ error: "Failed to fetch payment methods" });
+    }
+  });
+
+  app.get("/api/protected/payment-methods/active", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const methods = await storage.getActivePaymentMethods();
+      res.json(methods);
+    } catch (error) {
+      console.error('Fetch active payment methods error:', error);
+      res.status(500).json({ error: "Failed to fetch active payment methods" });
+    }
+  });
+
+  app.post("/api/protected/admin/payment-methods", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const methodData = insertPaymentMethodSchema.parse(req.body);
+      const method = await storage.createPaymentMethod(methodData);
+      res.json(method);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment method data", details: error.errors });
+      }
+      console.error('Create payment method error:', error);
+      res.status(500).json({ error: "Failed to create payment method" });
+    }
+  });
+
+  app.put("/api/protected/admin/payment-methods/:id", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const methodData = insertPaymentMethodSchema.partial().parse(req.body);
+      await storage.updatePaymentMethod(req.params.id, methodData);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment method data", details: error.errors });
+      }
+      console.error('Update payment method error:', error);
+      res.status(500).json({ error: "Failed to update payment method" });
+    }
+  });
+
+  app.delete("/api/protected/admin/payment-methods/:id", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      await storage.deletePaymentMethod(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete payment method error:', error);
+      res.status(500).json({ error: "Failed to delete payment method" });
+    }
+  });
+
+  // Admin Payment Configuration Management
+  app.get("/api/protected/admin/payment-configurations", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const configurations = await storage.getPaymentConfigurations();
+      res.json(configurations);
+    } catch (error) {
+      console.error('Fetch payment configurations error:', error);
+      res.status(500).json({ error: "Failed to fetch payment configurations" });
+    }
+  });
+
+  app.get("/api/protected/payment-configurations/:type", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const configuration = await storage.getPaymentConfiguration(req.params.type);
+      res.json(configuration);
+    } catch (error) {
+      console.error('Fetch payment configuration error:', error);
+      res.status(500).json({ error: "Failed to fetch payment configuration" });
+    }
+  });
+
+  app.post("/api/protected/admin/payment-configurations", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const configData = insertPaymentConfigurationSchema.parse(req.body);
+      const configuration = await storage.createPaymentConfiguration(configData);
+      res.json(configuration);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment configuration data", details: error.errors });
+      }
+      console.error('Create payment configuration error:', error);
+      res.status(500).json({ error: "Failed to create payment configuration" });
+    }
+  });
+
+  app.put("/api/protected/admin/payment-configurations/:id", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const configData = insertPaymentConfigurationSchema.partial().parse(req.body);
+      await storage.updatePaymentConfiguration(req.params.id, configData);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment configuration data", details: error.errors });
+      }
+      console.error('Update payment configuration error:', error);
+      res.status(500).json({ error: "Failed to update payment configuration" });
+    }
+  });
+
+  // Payment Transaction Management
+  app.post("/api/protected/payment-transactions", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transactionData = insertPaymentTransactionSchema.parse({
+        ...req.body,
+        payerId: req.user!.id // Ensure payer is authenticated user
+      });
+      const transaction = await storage.createPaymentTransaction(transactionData);
+      res.json(transaction);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment transaction data", details: error.errors });
+      }
+      console.error('Create payment transaction error:', error);
+      res.status(500).json({ error: "Failed to create payment transaction" });
+    }
+  });
+
+  app.get("/api/protected/payment-transactions/:id", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transaction = await storage.getPaymentTransaction(req.params.id);
+      if (!transaction) {
+        return res.status(404).json({ error: "Payment transaction not found" });
+      }
+      
+      // Check if user has access to this transaction
+      if (req.user!.role !== "admin" && transaction.payerId !== req.user!.id && transaction.recipientId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(transaction);
+    } catch (error) {
+      console.error('Fetch payment transaction error:', error);
+      res.status(500).json({ error: "Failed to fetch payment transaction" });
+    }
+  });
+
+  app.get("/api/protected/payment-transactions/ref/:transactionRef", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transaction = await storage.getPaymentTransactionByRef(req.params.transactionRef);
+      if (!transaction) {
+        return res.status(404).json({ error: "Payment transaction not found" });
+      }
+      
+      // Check if user has access to this transaction
+      if (req.user!.role !== "admin" && transaction.payerId !== req.user!.id && transaction.recipientId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(transaction);
+    } catch (error) {
+      console.error('Fetch payment transaction by ref error:', error);
+      res.status(500).json({ error: "Failed to fetch payment transaction" });
+    }
+  });
+
+  app.put("/api/protected/payment-transactions/:id/status", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { status, gatewayResponse } = req.body;
+      
+      // Only admin can update transaction status
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      await storage.updatePaymentTransactionStatus(req.params.id, status, gatewayResponse);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Update payment transaction status error:', error);
+      res.status(500).json({ error: "Failed to update payment transaction status" });
+    }
+  });
+
+  // Buyer Payment Tracking
+  app.get("/api/protected/buyer/payment-transactions", requireRole(["buyer"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const transactions = await storage.getPaymentTransactionsByPayer(req.user!.id);
+      res.json(transactions);
+    } catch (error) {
+      console.error('Fetch buyer payment transactions error:', error);
+      res.status(500).json({ error: "Failed to fetch payment transactions" });
+    }
+  });
+
+  app.get("/api/protected/payment-transactions/order/:orderId", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transactions = await storage.getPaymentTransactionsByOrder(req.params.orderId);
+      
+      // Check if user has access to this order's transactions
+      if (req.user!.role !== "admin") {
+        // For buyers and suppliers, verify they have access to the order
+        // This would typically require checking order ownership
+        // For now, we'll allow if they're involved in any transaction
+        const hasAccess = transactions.some(tx => 
+          tx.payerId === req.user!.id || tx.recipientId === req.user!.id
+        );
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      
+      res.json(transactions);
+    } catch (error) {
+      console.error('Fetch order payment transactions error:', error);
+      res.status(500).json({ error: "Failed to fetch order payment transactions" });
+    }
+  });
+
+  app.get("/api/protected/payment-transactions/offer/:curatedOfferId", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const transactions = await storage.getPaymentTransactionsByOffer(req.params.curatedOfferId);
+      
+      // Check if user has access to this offer's transactions
+      if (req.user!.role !== "admin") {
+        const hasAccess = transactions.some(tx => 
+          tx.payerId === req.user!.id || tx.recipientId === req.user!.id
+        );
+        if (!hasAccess) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
+      
+      res.json(transactions);
+    } catch (error) {
+      console.error('Fetch offer payment transactions error:', error);
+      res.status(500).json({ error: "Failed to fetch offer payment transactions" });
+    }
+  });
+
+  // Curated Offers with Payment Integration
+  app.get("/api/protected/curated-offers/:id", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const offer = await storage.getCuratedOffer(req.params.id);
+      if (!offer) {
+        return res.status(404).json({ error: "Curated offer not found" });
+      }
+      res.json(offer);
+    } catch (error) {
+      console.error('Fetch curated offer error:', error);
+      res.status(500).json({ error: "Failed to fetch curated offer" });
+    }
+  });
+
+  app.put("/api/protected/admin/curated-offers/:id/payment", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const paymentData = z.object({
+        paymentLink: z.string().optional(),
+        advancePaymentAmount: z.number().optional(),
+        finalPaymentAmount: z.number().optional(),
+        paymentDeadline: z.string().transform(str => new Date(str)).optional(),
+        paymentTerms: z.string().optional(),
+      }).parse(req.body);
+      
+      await storage.updateCuratedOfferPayment(req.params.id, paymentData);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: "Invalid payment data", details: error.errors });
+      }
+      console.error('Update curated offer payment error:', error);
+      res.status(500).json({ error: "Failed to update curated offer payment" });
+    }
+  });
+
+  // Payment Gateway Webhook (prepared for Razorpay integration)
+  app.post("/api/webhooks/payment", async (req, res) => {
+    try {
+      // This endpoint is prepared for Razorpay webhook integration
+      // Implementation would include:
+      // 1. Verify webhook signature
+      // 2. Extract payment data from webhook payload
+      // 3. Update payment transaction status
+      // 4. Trigger any post-payment actions
+      
+      console.log('Payment webhook received:', req.body);
+      
+      // For now, return success - actual implementation would be added when Razorpay is integrated
+      res.json({ status: "received" });
+    } catch (error) {
+      console.error('Payment webhook error:', error);
+      res.status(500).json({ error: "Webhook processing failed" });
     }
   });
 

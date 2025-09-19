@@ -22,7 +22,24 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "rfq_submitted", "rfq_approved", "rfq_status_change", "quote_received", 
   "quote_accepted", "quote_rejected", "supplier_invitation", "supplier_verified",
   "order_created", "order_status_change", "production_update", "inspection_completed",
-  "payout_processed", "general"
+  "payout_processed", "payment_received", "payment_due", "payment_failed", "general"
+]);
+
+// Payment-related enums
+export const paymentMethodTypeEnum = pgEnum("payment_method_type", [
+  "razorpay", "bank_transfer", "upi", "wallet", "other"
+]);
+
+export const paymentTransactionStatusEnum = pgEnum("payment_transaction_status", [
+  "pending", "processing", "completed", "failed", "cancelled", "refunded"
+]);
+
+export const paymentTransactionTypeEnum = pgEnum("payment_transaction_type", [
+  "advance_payment", "final_payment", "full_payment", "refund", "commission"
+]);
+
+export const paymentConfigTypeEnum = pgEnum("payment_config_type", [
+  "advance_percentage", "commission_rate", "platform_fee", "gateway_fee"
 ]);
 
 // Core tables
@@ -135,6 +152,12 @@ export const curatedOffers = pgTable("curated_offers", {
   supplierIndicators: jsonb("supplier_indicators"),
   publishedAt: timestamp("published_at"),
   expiresAt: timestamp("expires_at"),
+  // Payment integration fields
+  paymentLink: text("payment_link"),
+  advancePaymentAmount: numeric("advance_payment_amount", { precision: 12, scale: 2 }),
+  finalPaymentAmount: numeric("final_payment_amount", { precision: 12, scale: 2 }),
+  paymentDeadline: timestamp("payment_deadline"),
+  paymentTerms: text("payment_terms"),
 });
 
 export const orders = pgTable("orders", {
@@ -226,6 +249,52 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Payment system tables
+export const paymentMethods = pgTable("payment_methods", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  type: paymentMethodTypeEnum("type").notNull(),
+  isActive: boolean("is_active").default(true),
+  configuration: jsonb("configuration"), // Gateway API keys, settings, etc.
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  processingFeePercent: numeric("processing_fee_percent", { precision: 5, scale: 2 }).default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const paymentConfigurations = pgTable("payment_configurations", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  configType: paymentConfigTypeEnum("config_type").notNull(),
+  value: numeric("value", { precision: 12, scale: 2 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionRef: text("transaction_ref").notNull().unique(),
+  orderId: uuid("order_id").references(() => orders.id),
+  curatedOfferId: uuid("curated_offer_id").references(() => curatedOffers.id),
+  payerId: uuid("payer_id").references(() => users.id).notNull(), // Buyer who makes payment
+  recipientId: uuid("recipient_id").references(() => users.id), // Supplier who receives payout
+  paymentMethodId: uuid("payment_method_id").references(() => paymentMethods.id),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  fees: numeric("fees", { precision: 12, scale: 2 }).default("0"),
+  netAmount: numeric("net_amount", { precision: 12, scale: 2 }).notNull(),
+  currency: text("currency").default("INR"),
+  status: paymentTransactionStatusEnum("status").default("pending"),
+  transactionType: paymentTransactionTypeEnum("transaction_type").notNull(),
+  gatewayTransactionId: text("gateway_transaction_id"),
+  gatewayResponse: jsonb("gateway_response"),
+  notes: text("notes"),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -290,6 +359,9 @@ export type Document = typeof documents.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Ticket = typeof tickets.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type PaymentConfiguration = typeof paymentConfigurations.$inferSelect;
+export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
@@ -306,6 +378,25 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
 });
 
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPaymentConfigurationSchema = createInsertSchema(paymentConfigurations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions).omit({
+  id: true,
+  transactionRef: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -315,3 +406,6 @@ export type InsertQuote = z.infer<typeof insertQuoteSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertCuratedOffer = z.infer<typeof insertCuratedOfferSchema>;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type InsertPaymentConfiguration = z.infer<typeof insertPaymentConfigurationSchema>;
+export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;

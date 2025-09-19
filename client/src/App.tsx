@@ -15,6 +15,7 @@ import CreateRFQ from "@/pages/buyer/create-rfq";
 import BuyerRFQs from "@/pages/buyer/rfqs";
 import BuyerOffers from "@/pages/buyer/offers";
 import BuyerOrders from "@/pages/buyer/orders";
+import BuyerPayments from "@/pages/buyer/payments";
 import SupplierDashboard from "@/pages/supplier/dashboard";
 import SupplierOnboarding from "@/pages/supplier/onboarding";
 import SupplierRFQs from "@/pages/supplier/rfqs";
@@ -23,6 +24,7 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminRFQManagement from "@/pages/admin/rfq-management";
 import AdminSupplierManagement from "@/pages/admin/supplier-management";
 import AdminOfferComposer from "@/pages/admin/offer-composer";
+import AdminPaymentConfig from "@/pages/admin/payment-config";
 import NotFound from "@/pages/not-found";
 
 // Components
@@ -43,7 +45,7 @@ function DashboardLayout() {
     { icon: 'fas fa-file-alt', label: 'My RFQs', href: '/buyer/rfqs' },
     { icon: 'fas fa-handshake', label: 'Offers', href: '/buyer/offers' },
     { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/buyer/orders' },
-    { icon: 'fas fa-credit-card', label: 'Payments', href: '#' },
+    { icon: 'fas fa-credit-card', label: 'Payments', href: '/buyer/payments' },
     { icon: 'fas fa-headset', label: 'Support', href: '#' },
   ];
 
@@ -62,7 +64,7 @@ function DashboardLayout() {
     { icon: 'fas fa-users', label: 'Supplier Management', href: '/admin/suppliers' },
     { icon: 'fas fa-handshake', label: 'Offer Composer', href: '/admin/offers' },
     { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '#' },
-    { icon: 'fas fa-credit-card', label: 'Payments & Payouts', href: '#' },
+    { icon: 'fas fa-credit-card', label: 'Payment Configuration', href: '/admin/payment-config' },
     { icon: 'fas fa-chart-bar', label: 'Analytics', href: '#' },
   ];
 
@@ -93,6 +95,7 @@ function DashboardLayout() {
             <Route path="/buyer/rfqs" component={BuyerRFQs} />
             <Route path="/buyer/offers" component={BuyerOffers} />
             <Route path="/buyer/orders" component={BuyerOrders} />
+            <Route path="/buyer/payments" component={BuyerPayments} />
             
             {/* Supplier Routes */}
             <Route path="/supplier/dashboard" component={SupplierDashboard} />
@@ -105,6 +108,7 @@ function DashboardLayout() {
             <Route path="/admin/rfqs" component={AdminRFQManagement} />
             <Route path="/admin/suppliers" component={AdminSupplierManagement} />
             <Route path="/admin/offers" component={AdminOfferComposer} />
+            <Route path="/admin/payment-config" component={AdminPaymentConfig} />
             
             {/* Default redirect based on role */}
             <Route path="/dashboard">

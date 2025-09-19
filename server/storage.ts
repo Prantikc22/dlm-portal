@@ -4,10 +4,13 @@ import { eq, and, desc, like, inArray, sql, gte } from "drizzle-orm";
 import { 
   users, companies, supplierProfiles, skus, rfqs, rfqItems, 
   supplierInvites, quotes, curatedOffers, orders, documents, notifications,
+  paymentMethods, paymentConfigurations, paymentTransactions,
   type User, type Company, type SupplierProfile, type SKU, type RFQ, 
   type Quote, type CuratedOffer, type Order, type Document, type Notification,
+  type PaymentMethod, type PaymentConfiguration, type PaymentTransaction,
   type InsertUser, type InsertCompany, type InsertSupplierProfile, 
-  type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer, type InsertNotification
+  type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer, type InsertNotification,
+  type InsertPaymentMethod, type InsertPaymentConfiguration, type InsertPaymentTransaction
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
@@ -20,6 +23,9 @@ class InMemoryStorage implements IStorage {
   private supplierInvites: any[] = [];
   private documents: Document[] = [];
   private notifications: Notification[] = [];
+  private paymentMethods: PaymentMethod[] = [];
+  private paymentConfigurations: PaymentConfiguration[] = [];
+  private paymentTransactions: PaymentTransaction[] = [];
   private skus: SKU[] = [
     // Mechanical Manufacturing Industry
     {
@@ -490,6 +496,154 @@ class InMemoryStorage implements IStorage {
     };
   }
 
+  // Payment methods management
+  async getPaymentMethods(): Promise<PaymentMethod[]> {
+    return this.paymentMethods;
+  }
+
+  async getActivePaymentMethods(): Promise<PaymentMethod[]> {
+    return this.paymentMethods.filter(method => method.isActive);
+  }
+
+  async createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod> {
+    const newMethod: PaymentMethod = {
+      id: randomUUID(),
+      name: method.name,
+      type: method.type,
+      isActive: method.isActive ?? true,
+      configuration: method.configuration || null,
+      displayName: method.displayName,
+      description: method.description || null,
+      processingFeePercent: method.processingFeePercent || "0",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.paymentMethods.push(newMethod);
+    return newMethod;
+  }
+
+  async updatePaymentMethod(id: string, data: Partial<InsertPaymentMethod>): Promise<void> {
+    const method = this.paymentMethods.find(m => m.id === id);
+    if (method) {
+      Object.assign(method, data, { updatedAt: new Date() });
+    }
+  }
+
+  async deletePaymentMethod(id: string): Promise<void> {
+    this.paymentMethods = this.paymentMethods.filter(m => m.id !== id);
+  }
+
+  // Payment configurations management
+  async getPaymentConfigurations(): Promise<PaymentConfiguration[]> {
+    return this.paymentConfigurations;
+  }
+
+  async getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined> {
+    return this.paymentConfigurations.find(config => config.configType === configType && config.isActive);
+  }
+
+  async createPaymentConfiguration(config: InsertPaymentConfiguration): Promise<PaymentConfiguration> {
+    const newConfig: PaymentConfiguration = {
+      id: randomUUID(),
+      configType: config.configType,
+      value: config.value,
+      description: config.description || null,
+      isActive: config.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.paymentConfigurations.push(newConfig);
+    return newConfig;
+  }
+
+  async updatePaymentConfiguration(id: string, data: Partial<InsertPaymentConfiguration>): Promise<void> {
+    const config = this.paymentConfigurations.find(c => c.id === id);
+    if (config) {
+      Object.assign(config, data, { updatedAt: new Date() });
+    }
+  }
+
+  // Payment transactions management
+  async createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
+    const newTransaction: PaymentTransaction = {
+      id: randomUUID(),
+      transactionRef: `TXN_${Date.now()}_${randomUUID().substring(0, 8)}`,
+      orderId: transaction.orderId || null,
+      curatedOfferId: transaction.curatedOfferId || null,
+      payerId: transaction.payerId,
+      recipientId: transaction.recipientId || null,
+      paymentMethodId: transaction.paymentMethodId || null,
+      amount: transaction.amount,
+      fees: transaction.fees || "0",
+      netAmount: transaction.netAmount,
+      currency: transaction.currency || "INR",
+      status: transaction.status || "pending",
+      transactionType: transaction.transactionType,
+      gatewayTransactionId: transaction.gatewayTransactionId || null,
+      gatewayResponse: transaction.gatewayResponse || null,
+      notes: transaction.notes || null,
+      processedAt: transaction.processedAt || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.paymentTransactions.push(newTransaction);
+    return newTransaction;
+  }
+
+  async getPaymentTransaction(id: string): Promise<PaymentTransaction | undefined> {
+    return this.paymentTransactions.find(tx => tx.id === id);
+  }
+
+  async getPaymentTransactionByRef(transactionRef: string): Promise<PaymentTransaction | undefined> {
+    return this.paymentTransactions.find(tx => tx.transactionRef === transactionRef);
+  }
+
+  async updatePaymentTransactionStatus(id: string, status: string, gatewayResponse?: any): Promise<void> {
+    const transaction = this.paymentTransactions.find(tx => tx.id === id);
+    if (transaction) {
+      transaction.status = status as any;
+      transaction.gatewayResponse = gatewayResponse || transaction.gatewayResponse;
+      if (status === "completed" || status === "failed") {
+        transaction.processedAt = new Date();
+      }
+      transaction.updatedAt = new Date();
+    }
+  }
+
+  async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
+    return this.paymentTransactions.filter(tx => tx.payerId === payerId);
+  }
+
+  async getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]> {
+    return this.paymentTransactions.filter(tx => tx.orderId === orderId);
+  }
+
+  async getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]> {
+    return this.paymentTransactions.filter(tx => tx.curatedOfferId === curatedOfferId);
+  }
+
+  // Curated offers with payment fields
+  async getCuratedOffer(id: string): Promise<CuratedOffer | undefined> {
+    return this.curatedOffers.find(offer => offer.id === id);
+  }
+
+  async getCuratedOffersByRFQ(rfqId: string): Promise<CuratedOffer[]> {
+    return this.curatedOffers.filter(offer => offer.rfqId === rfqId);
+  }
+
+  async updateCuratedOfferPayment(id: string, paymentData: {
+    paymentLink?: string;
+    advancePaymentAmount?: number;
+    finalPaymentAmount?: number;
+    paymentDeadline?: Date;
+    paymentTerms?: string;
+  }): Promise<void> {
+    const offer = this.curatedOffers.find(o => o.id === id);
+    if (offer) {
+      Object.assign(offer, paymentData);
+    }
+  }
+
   async getAllQuotes(): Promise<Array<Quote & { rfq: RFQ; supplier: User }>> {
     return this.quotes.map(quote => {
       const rfq = this.rfqs.find(r => r.id === quote.rfqId)!;
@@ -647,6 +801,40 @@ export interface IStorage {
   // Admin-specific methods
   getAllRFQs(): Promise<RFQ[]>;
   updateSupplierVerificationStatus(companyId: string, status: string): Promise<void>;
+
+  // Payment methods management
+  getPaymentMethods(): Promise<PaymentMethod[]>;
+  getActivePaymentMethods(): Promise<PaymentMethod[]>;
+  createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod>;
+  updatePaymentMethod(id: string, data: Partial<InsertPaymentMethod>): Promise<void>;
+  deletePaymentMethod(id: string): Promise<void>;
+
+  // Payment configurations management
+  getPaymentConfigurations(): Promise<PaymentConfiguration[]>;
+  getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined>;
+  createPaymentConfiguration(config: InsertPaymentConfiguration): Promise<PaymentConfiguration>;
+  updatePaymentConfiguration(id: string, data: Partial<InsertPaymentConfiguration>): Promise<void>;
+
+  // Payment transactions management
+  createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction>;
+  getPaymentTransaction(id: string): Promise<PaymentTransaction | undefined>;
+  getPaymentTransactionByRef(transactionRef: string): Promise<PaymentTransaction | undefined>;
+  updatePaymentTransactionStatus(id: string, status: string, gatewayResponse?: any): Promise<void>;
+  getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]>;
+  getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]>;
+  getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]>;
+
+  // Curated offers with payment fields
+  createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer>;
+  getCuratedOffer(id: string): Promise<CuratedOffer | undefined>;
+  getCuratedOffersByRFQ(rfqId: string): Promise<CuratedOffer[]>;
+  updateCuratedOfferPayment(id: string, paymentData: {
+    paymentLink?: string;
+    advancePaymentAmount?: number;
+    finalPaymentAmount?: number;
+    paymentDeadline?: Date;
+    paymentTerms?: string;
+  }): Promise<void>;
   getAdminMetrics(): Promise<{
     activeRFQs: number;
     verifiedSuppliers: number;
