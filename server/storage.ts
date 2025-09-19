@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq, and, desc, like, inArray } from "drizzle-orm";
+import { eq, and, desc, like, inArray, sql, gte } from "drizzle-orm";
 import { 
   users, companies, supplierProfiles, skus, rfqs, rfqItems, 
   supplierInvites, quotes, curatedOffers, orders, documents,
@@ -452,7 +452,7 @@ class InMemoryStorage implements IStorage {
     successRate: number;
   }> {
     const activeRFQs = this.rfqs.filter(rfq => 
-      ['submitted', 'under_review', 'invited', 'offers_published'].includes(rfq.status)
+      rfq.status && ['submitted', 'under_review', 'invited', 'offers_published'].includes(rfq.status)
     ).length;
     
     const verifiedSuppliers = this.supplierProfiles.filter(p => 
@@ -466,7 +466,7 @@ class InMemoryStorage implements IStorage {
     
     // Monthly volume: sum of all orders from current month
     const monthlyOrders = this.orders.filter(order => 
-      new Date(order.createdAt) >= currentMonth
+      order.createdAt && new Date(order.createdAt) >= currentMonth
     );
     const monthlyVolume = monthlyOrders.reduce((sum, order) => {
       // Extract price from order metadata or use 0
@@ -476,7 +476,7 @@ class InMemoryStorage implements IStorage {
     
     // Success rate: percentage of completed orders vs total orders
     const totalCompletedOrders = this.orders.filter(order => 
-      ['delivered', 'closed'].includes(order.status)
+      order.status && ['delivered', 'closed'].includes(order.status)
     ).length;
     const totalOrders = this.orders.length;
     const successRate = totalOrders > 0 ? (totalCompletedOrders / totalOrders) * 100 : 0;
@@ -805,10 +805,10 @@ export class SupabaseStorage implements IStorage {
     
     // Monthly volume: sum of all orders from current month  
     const monthlyOrders = await db.select().from(orders).where(
-      sql`${orders.createdAt} >= ${currentMonth}`
+      gte(orders.createdAt, currentMonth)
     );
     
-    const monthlyVolume = monthlyOrders.reduce((sum, order) => {
+    const monthlyVolume = monthlyOrders.reduce((sum: number, order: any) => {
       const amount = order.totalAmount ? parseFloat(order.totalAmount.toString()) : 0;
       return sum + amount;
     }, 0);
@@ -841,7 +841,7 @@ export class SupabaseStorage implements IStorage {
       .innerJoin(users, eq(quotes.supplierId, users.id))
       .orderBy(desc(quotes.createdAt));
     
-    return result.map(r => ({ ...r.quote, rfq: r.rfq, supplier: r.supplier }));
+    return result.map((r: any) => ({ ...r.quote, rfq: r.rfq, supplier: r.supplier }));
   }
 
   async createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer> {
@@ -859,7 +859,7 @@ export class SupabaseStorage implements IStorage {
       .innerJoin(rfqs, eq(curatedOffers.rfqId, rfqs.id))
       .orderBy(desc(curatedOffers.publishedAt));
     
-    return result.map(r => ({ ...r.offer, rfq: r.rfq }));
+    return result.map((r: any) => ({ ...r.offer, rfq: r.rfq }));
   }
 
   async publishCuratedOffer(offerId: string): Promise<void> {
