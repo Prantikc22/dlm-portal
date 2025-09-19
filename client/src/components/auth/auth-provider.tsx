@@ -38,9 +38,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Login failed');
       }
 
-      const { user } = await response.json();
+      const { user, token } = await response.json();
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
+      
+      // Store JWT token if provided
+      if (token) {
+        localStorage.setItem('token', token);
+      }
     } catch (error) {
       throw error;
     }
@@ -60,9 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Registration failed');
       }
 
-      const { user } = await response.json();
+      const { user, token } = await response.json();
       setUser(user);
       localStorage.setItem('user', JSON.stringify(user));
+      
+      // Store JWT token if provided
+      if (token) {
+        localStorage.setItem('token', token);
+      }
     } catch (error) {
       throw error;
     }
@@ -71,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   };
 
   return (

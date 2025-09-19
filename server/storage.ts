@@ -10,6 +10,7 @@ import {
   type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import bcrypt from "bcrypt";
 
 // In-memory storage for development/testing when database is unavailable
 class InMemoryStorage implements IStorage {
@@ -1588,6 +1589,66 @@ async function initializeDatabase() {
   }
 }
 
+async function initializeAdminUsers() {
+  if (!db) return;
+  
+  try {
+    // Check if admin users already exist
+    const existingAdmins = await db.select()
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1);
+    
+    if (existingAdmins.length > 0) {
+      console.log('Admin users already exist, skipping admin seeding');
+      return;
+    }
+
+    console.log('Creating default admin users...');
+    
+    // Create admin company first
+    const adminCompany = {
+      id: randomUUID(),
+      name: 'Logicwerk Admin',
+      address: null,
+      contactInfo: null,
+      website: null,
+      businessType: null,
+      yearEstablished: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    await db.insert(companies).values(adminCompany);
+    
+    // Create default admin user
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash('admin123', saltRounds);
+    
+    const adminUser = {
+      id: randomUUID(),
+      email: 'admin@logicwerk.com',
+      password: hashedPassword,
+      name: 'System Administrator',
+      role: 'admin' as const,
+      companyId: adminCompany.id,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    await db.insert(users).values(adminUser);
+    
+    console.log('✅ Successfully created admin user:');
+    console.log('   Email: admin@logicwerk.com');
+    console.log('   Password: admin123');
+    console.log('   Role: admin');
+    
+  } catch (error) {
+    console.error('Failed to initialize admin users:', error);
+  }
+}
+
 // Initialize storage with fallback capability
 const storage: IStorage = new FallbackStorage();
 
@@ -1597,6 +1658,8 @@ if (dbConnectionFailed) {
   console.log("Database connection established, using Supabase storage");
   // Initialize database with comprehensive SKU data
   initializeDatabase();
+  // Initialize admin users for system access
+  initializeAdminUsers();
 }
 
 // Debug: Test storage initialization

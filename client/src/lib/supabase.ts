@@ -73,6 +73,15 @@ export const apiClient = {
 
 // Auth helpers
 export const getAuthHeaders = (): Record<string, string> => {
+  // First try to get JWT token
+  const token = localStorage.getItem('token');
+  if (token) {
+    return {
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+  
+  // Fall back to header-based auth for backward compatibility
   const user = localStorage.getItem('user');
   if (user) {
     const userData = JSON.parse(user);

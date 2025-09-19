@@ -35,7 +35,7 @@ const authenticateUser = async (req: any, res: any, next: any) => {
     }
 
     const token = authHeader.substring(7);
-    const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+    const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || process.env.SESSION_SECRET;
     
     if (!jwtSecret) {
       console.error('❌ JWT_SECRET or SUPABASE_JWT_SECRET not configured');
@@ -104,7 +104,7 @@ const authenticateUserLegacy = async (req: any, res: any, next: any) => {
 
 // Smart authentication middleware that uses JWT when available, falls back to legacy
 const authenticateUserSmart = async (req: any, res: any, next: any) => {
-  const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET;
+  const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || process.env.SESSION_SECRET;
   
   if (jwtSecret) {
     return authenticateUser(req, res, next);
@@ -158,7 +158,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const user = await storage.createUser(userToCreate);
-      res.json({ user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId } });
+      
+      // Generate JWT token for registration
+      const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || process.env.SESSION_SECRET;
+      let token = null;
+      
+      if (jwtSecret) {
+        token = jwt.sign(
+          {
+            sub: user.id,
+            user_id: user.id,
+            email: user.email,
+            role: user.role,
+            user_metadata: { role: user.role },
+            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+          },
+          jwtSecret
+        );
+      }
+      
+      const response = { 
+        user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId }
+      };
+      
+      if (token) {
+        response.token = token;
+      }
+      
+      res.json(response);
     } catch (error) {
       console.error('Registration error:', error);
       res.status(500).json({ error: "Registration failed. Please try again." });
@@ -184,7 +211,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid email or password" });
       }
       
-      res.json({ user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId } });
+      // Generate JWT token
+      const jwtSecret = process.env.JWT_SECRET || process.env.SUPABASE_JWT_SECRET || process.env.SESSION_SECRET;
+      let token = null;
+      
+      if (jwtSecret) {
+        token = jwt.sign(
+          {
+            sub: user.id,
+            user_id: user.id,
+            email: user.email,
+            role: user.role,
+            user_metadata: { role: user.role },
+            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
+          },
+          jwtSecret
+        );
+      }
+      
+      const response = { 
+        user: { id: user.id, email: user.email, role: user.role, companyId: user.companyId }
+      };
+      
+      if (token) {
+        response.token = token;
+      }
+      
+      res.json(response);
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ error: "Login failed" });
@@ -309,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/protected/rfqs", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/protected/rfqs", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     console.log("🔍 RFQ Retrieval Request:", { 
       userId: req.user?.id, 
       userEmail: req.user?.email, 
@@ -338,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/protected/rfqs/:id", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/protected/rfqs/:id", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
       const rfq = await storage.getRFQ(req.params.id);
       if (!rfq) {
@@ -532,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Document upload routes
-  app.post("/api/protected/documents/upload", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.post("/api/protected/documents/upload", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user!.companyId) {
         return res.status(400).json({ error: "Company required for document upload" });
@@ -650,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/protected/documents", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/protected/documents", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
       if (!req.user!.companyId) {
         return res.status(400).json({ error: "Company required" });
@@ -663,7 +716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/protected/documents/:id", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.delete("/api/protected/documents/:id", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
       // In a real implementation, you would also delete the actual file from storage
       await storage.deleteDocument(req.params.id);
@@ -674,7 +727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Order routes
-  app.get("/api/protected/orders", authenticateUser, async (req: AuthenticatedRequest, res) => {
+  app.get("/api/protected/orders", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
       let orders: any[] = [];
       if (req.user!.role === "buyer") {
