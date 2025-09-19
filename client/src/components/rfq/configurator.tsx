@@ -40,6 +40,7 @@ const rfqItemSchema = z.object({
   budgetMax: z.number().optional(),
   ndaRequired: z.boolean(),
   confidential: z.boolean(),
+  termsAccepted: z.boolean().refine(val => val === true, 'You must accept the terms and conditions'),
   files: z.array(z.object({
     name: z.string(),
     size: z.number(),
@@ -73,6 +74,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
       sampleRequired: false,
       ndaRequired: false,
       confidential: false,
+      termsAccepted: false,
       inspection: 'basic',
       packaging: 'standard',
       surfaceFinish: [],
@@ -852,15 +854,32 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                     </div>
                   )}
 
-                  <div className="flex items-start space-x-3 p-4 border rounded-lg">
-                    <Checkbox required data-testid="checkbox-terms" />
-                    <div>
-                      <Label className="text-sm cursor-pointer">I agree to the Terms & Conditions and anti-disintermediation policy</Label>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        By submitting this RFQ, I confirm that all information provided is accurate and complete.
-                      </p>
-                    </div>
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="termsAccepted"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-start space-x-3 p-4 border rounded-lg">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              data-testid="checkbox-terms"
+                            />
+                          </FormControl>
+                          <div>
+                            <FormLabel className="text-sm cursor-pointer">
+                              I agree to the Terms & Conditions and anti-disintermediation policy
+                            </FormLabel>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              By submitting this RFQ, I confirm that all information provided is accurate and complete.
+                            </p>
+                            <FormMessage />
+                          </div>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                 </div>
               )}
             </CardContent>
