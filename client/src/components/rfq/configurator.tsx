@@ -22,7 +22,7 @@ const rfqItemSchema = z.object({
   targetDeliveryDate: z.string().optional(),
   leadTimeDays: z.number().optional(),
   priority: z.string(),
-  material: z.string().min(1, 'Material is required'),
+  material: z.string().optional(),
   materialGrade: z.string().optional(),
   tolerance: z.string().optional(),
   surfaceFinish: z.array(z.string()).optional(),
@@ -203,6 +203,10 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
   };
 
   const handleSubmit = (data: RFQItemForm) => {
+    console.log('🚀 Form submitted with data:', data);
+    console.log('📁 Uploaded files:', uploadedFiles);
+    console.log('✅ Form validation state:', form.formState);
+    
     // Include uploaded files in submission data
     const submissionData = {
       ...data,
@@ -901,7 +905,34 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                 Continue
               </Button>
             ) : (
-              <Button type="submit" data-testid="button-submit-rfq">
+              <Button 
+                type="button" 
+                data-testid="button-submit-rfq"
+                onClick={async (e) => {
+                  console.log('🔘 Submit button clicked!');
+                  
+                  // Validate the form
+                  const isValid = await form.trigger();
+                  const formData = form.getValues();
+                  const errors = form.formState.errors;
+                  
+                  console.log('❌ Form errors:', errors);
+                  console.log('📝 Form values:', formData);
+                  console.log('✅ Form valid:', isValid);
+                  
+                  if (isValid) {
+                    console.log('✅ Form is valid, submitting...');
+                    handleSubmit(formData);
+                  } else {
+                    console.log('🚫 Form has validation errors:', errors);
+                    toast({
+                      title: "Please complete all required fields",
+                      description: "Check the form for any missing or invalid information.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
                 Submit RFQ
               </Button>
             )}
