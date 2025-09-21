@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Search, Filter, Users, Send, Eye, MoreHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -189,6 +190,7 @@ export default function AdminRFQManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setLocation(`/admin/rfq/${rfq.id}`)}
                             data-testid={`button-view-rfq-${rfq.id}`}
                           >
                             <Eye className="h-4 w-4 mr-1" />

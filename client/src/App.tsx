@@ -13,6 +13,7 @@ import Register from "@/pages/auth/register";
 import BuyerDashboard from "@/pages/buyer/dashboard";
 import CreateRFQ from "@/pages/buyer/create-rfq";
 import BuyerRFQs from "@/pages/buyer/rfqs";
+import BuyerRFQDetail from "@/pages/buyer/rfq-detail";
 import BuyerOffers from "@/pages/buyer/offers";
 import BuyerOrders from "@/pages/buyer/orders";
 import BuyerPayments from "@/pages/buyer/payments";
@@ -22,6 +23,7 @@ import SupplierRFQs from "@/pages/supplier/rfqs";
 import SupplierQuotes from "@/pages/supplier/quotes";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminRFQManagement from "@/pages/admin/rfq-management";
+import AdminRFQDetail from "@/pages/admin/rfq-detail";
 import AdminSupplierManagement from "@/pages/admin/supplier-management";
 import AdminOfferComposer from "@/pages/admin/offer-composer";
 import AdminPaymentConfig from "@/pages/admin/payment-config";
@@ -93,6 +95,7 @@ function DashboardLayout() {
             <Route path="/buyer/dashboard" component={BuyerDashboard} />
             <Route path="/buyer/create-rfq" component={CreateRFQ} />
             <Route path="/buyer/rfqs" component={BuyerRFQs} />
+            <Route path="/buyer/rfq/:id" component={BuyerRFQDetail} />
             <Route path="/buyer/offers" component={BuyerOffers} />
             <Route path="/buyer/orders" component={BuyerOrders} />
             <Route path="/buyer/payments" component={BuyerPayments} />
@@ -106,6 +109,7 @@ function DashboardLayout() {
             {/* Admin Routes */}
             <Route path="/admin/dashboard" component={AdminDashboard} />
             <Route path="/admin/rfqs" component={AdminRFQManagement} />
+            <Route path="/admin/rfq/:id" component={AdminRFQDetail} />
             <Route path="/admin/suppliers" component={AdminSupplierManagement} />
             <Route path="/admin/offers" component={AdminOfferComposer} />
             <Route path="/admin/payment-config" component={AdminPaymentConfig} />

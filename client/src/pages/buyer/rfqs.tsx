@@ -77,7 +77,12 @@ export default function BuyerRFQs() {
                         {new Date(rfq.createdAt!).toLocaleDateString()}
                       </td>
                       <td className="py-4 px-6">
-                        <Button variant="ghost" size="sm" data-testid={`button-view-rfq-${rfq.id}`}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setLocation(`/buyer/rfq/${rfq.id}`)}
+                          data-testid={`button-view-rfq-${rfq.id}`}
+                        >
                           View Details
                         </Button>
                       </td>

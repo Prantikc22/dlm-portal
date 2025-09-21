@@ -74,7 +74,7 @@ export default function BuyerOffers() {
     },
   ];
 
-  const displayOffers = offers.length > 0 ? offers : sampleOffers;
+  const displayOffers = offers;
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`;
