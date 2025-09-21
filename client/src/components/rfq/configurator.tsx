@@ -203,10 +203,6 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
   };
 
   const handleSubmit = (data: RFQItemForm) => {
-    console.log('🚀 Form submitted with data:', data);
-    console.log('📁 Uploaded files:', uploadedFiles);
-    console.log('✅ Form validation state:', form.formState);
-    
     // Include uploaded files in submission data
     const submissionData = {
       ...data,
@@ -264,7 +260,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                     name="itemTitle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Item Title</FormLabel>
+                        <FormLabel>Item Title *</FormLabel>
                         <FormControl>
                           <Input placeholder="e.g., Aluminum Brackets" {...field} data-testid="input-item-title" />
                         </FormControl>
@@ -279,7 +275,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                       name="quantity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Quantity</FormLabel>
+                          <FormLabel>Quantity *</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -298,7 +294,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                       name="unit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Unit</FormLabel>
+                          <FormLabel>Unit *</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger data-testid="select-unit">
@@ -873,7 +869,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                           </FormControl>
                           <div>
                             <FormLabel className="text-sm cursor-pointer">
-                              I agree to the Terms & Conditions and anti-disintermediation policy
+                              I agree to the Terms & Conditions and anti-disintermediation policy *
                             </FormLabel>
                             <p className="text-xs text-muted-foreground mt-1">
                               By submitting this RFQ, I confirm that all information provided is accurate and complete.
@@ -909,22 +905,13 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                 type="button" 
                 data-testid="button-submit-rfq"
                 onClick={async (e) => {
-                  console.log('🔘 Submit button clicked!');
-                  
                   // Validate the form
                   const isValid = await form.trigger();
                   const formData = form.getValues();
-                  const errors = form.formState.errors;
-                  
-                  console.log('❌ Form errors:', errors);
-                  console.log('📝 Form values:', formData);
-                  console.log('✅ Form valid:', isValid);
                   
                   if (isValid) {
-                    console.log('✅ Form is valid, submitting...');
                     handleSubmit(formData);
                   } else {
-                    console.log('🚫 Form has validation errors:', errors);
                     toast({
                       title: "Please complete all required fields",
                       description: "Check the form for any missing or invalid information.",
