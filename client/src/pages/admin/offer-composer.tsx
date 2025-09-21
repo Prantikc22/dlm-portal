@@ -55,8 +55,9 @@ export default function AdminOfferComposer() {
   });
 
   const { data: offers = [] } = useQuery({
-    queryKey: ['/api/protected/admin/offers'],
+    queryKey: ['/api/protected/admin/offers', selectedRFQ?.id],
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/offers'),
+    enabled: !!selectedRFQ,
   });
 
   // Payment configurations for calculations

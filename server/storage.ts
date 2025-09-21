@@ -1140,6 +1140,109 @@ export class SupabaseStorage implements IStorage {
       .set({ isRead: true })
       .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
   }
+
+  // Payment methods
+  async getPaymentMethods(): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods);
+  }
+
+  async getActivePaymentMethods(): Promise<PaymentMethod[]> {
+    return await db.select().from(paymentMethods).where(eq(paymentMethods.isActive, true));
+  }
+
+  async createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod> {
+    const result = await db.insert(paymentMethods).values(method).returning();
+    return result[0];
+  }
+
+  async updatePaymentMethod(id: string, data: Partial<InsertPaymentMethod>): Promise<void> {
+    await db.update(paymentMethods).set({ ...data, updatedAt: new Date() }).where(eq(paymentMethods.id, id));
+  }
+
+  async deletePaymentMethod(id: string): Promise<void> {
+    await db.delete(paymentMethods).where(eq(paymentMethods.id, id));
+  }
+
+  // Payment configurations
+  async getPaymentConfigurations(): Promise<PaymentConfiguration[]> {
+    return await db.select().from(paymentConfigurations);
+  }
+
+  async getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined> {
+    const result = await db.select().from(paymentConfigurations).where(eq(paymentConfigurations.configType, configType)).limit(1);
+    return result[0];
+  }
+
+  async createPaymentConfiguration(config: InsertPaymentConfiguration): Promise<PaymentConfiguration> {
+    const result = await db.insert(paymentConfigurations).values(config).returning();
+    return result[0];
+  }
+
+  async updatePaymentConfiguration(id: string, data: Partial<InsertPaymentConfiguration>): Promise<void> {
+    await db.update(paymentConfigurations).set({ ...data, updatedAt: new Date() }).where(eq(paymentConfigurations.id, id));
+  }
+
+  // Payment transactions
+  async createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
+    const result = await db.insert(paymentTransactions).values(transaction).returning();
+    return result[0];
+  }
+
+  async getPaymentTransaction(id: string): Promise<PaymentTransaction | undefined> {
+    const result = await db.select().from(paymentTransactions).where(eq(paymentTransactions.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getPaymentTransactionByRef(transactionRef: string): Promise<PaymentTransaction | undefined> {
+    const result = await db.select().from(paymentTransactions).where(eq(paymentTransactions.transactionRef, transactionRef)).limit(1);
+    return result[0];
+  }
+
+  async updatePaymentTransactionStatus(id: string, status: string, gatewayResponse?: any): Promise<void> {
+    await db.update(paymentTransactions).set({ 
+      status: status as any, 
+      gatewayResponse: gatewayResponse || null,
+      updatedAt: new Date() 
+    }).where(eq(paymentTransactions.id, id));
+  }
+
+  async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
+    return await db.select().from(paymentTransactions).where(eq(paymentTransactions.payerId, payerId)).orderBy(desc(paymentTransactions.createdAt));
+  }
+
+  async getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]> {
+    return await db.select().from(paymentTransactions).where(eq(paymentTransactions.orderId, orderId)).orderBy(desc(paymentTransactions.createdAt));
+  }
+
+  async getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]> {
+    return await db.select().from(paymentTransactions).where(eq(paymentTransactions.curatedOfferId, curatedOfferId)).orderBy(desc(paymentTransactions.createdAt));
+  }
+
+  // Additional offer methods
+  async getCuratedOffer(id: string): Promise<CuratedOffer | undefined> {
+    const result = await db.select().from(curatedOffers).where(eq(curatedOffers.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getCuratedOffersByRFQ(rfqId: string): Promise<CuratedOffer[]> {
+    return await db.select().from(curatedOffers).where(eq(curatedOffers.rfqId, rfqId)).orderBy(desc(curatedOffers.publishedAt));
+  }
+
+  async updateCuratedOfferPayment(id: string, paymentData: {
+    paymentLink?: string;
+    advancePaymentAmount?: number;
+    finalPaymentAmount?: number;
+    paymentDeadline?: Date;
+    paymentTerms?: string;
+  }): Promise<void> {
+    await db.update(curatedOffers).set({
+      paymentLink: paymentData.paymentLink || null,
+      advancePaymentAmount: paymentData.advancePaymentAmount?.toString() || null,
+      finalPaymentAmount: paymentData.finalPaymentAmount?.toString() || null,
+      paymentDeadline: paymentData.paymentDeadline || null,
+      paymentTerms: paymentData.paymentTerms || null,
+    }).where(eq(curatedOffers.id, id));
+  }
 }
 
 // Wrapper storage that falls back to in-memory when database operations fail
@@ -1327,6 +1430,92 @@ class FallbackStorage implements IStorage {
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
     return this.withFallback(async (storage) => storage.markAllNotificationsAsRead(userId));
+  }
+
+  // Payment methods
+  async getPaymentMethods(): Promise<PaymentMethod[]> {
+    return this.withFallback(async (storage) => storage.getPaymentMethods());
+  }
+
+  async getActivePaymentMethods(): Promise<PaymentMethod[]> {
+    return this.withFallback(async (storage) => storage.getActivePaymentMethods());
+  }
+
+  async createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod> {
+    return this.withFallback(async (storage) => storage.createPaymentMethod(method));
+  }
+
+  async updatePaymentMethod(id: string, data: Partial<InsertPaymentMethod>): Promise<void> {
+    return this.withFallback(async (storage) => storage.updatePaymentMethod(id, data));
+  }
+
+  async deletePaymentMethod(id: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.deletePaymentMethod(id));
+  }
+
+  // Payment configurations
+  async getPaymentConfigurations(): Promise<PaymentConfiguration[]> {
+    return this.withFallback(async (storage) => storage.getPaymentConfigurations());
+  }
+
+  async getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined> {
+    return this.withFallback(async (storage) => storage.getPaymentConfiguration(configType));
+  }
+
+  async createPaymentConfiguration(config: InsertPaymentConfiguration): Promise<PaymentConfiguration> {
+    return this.withFallback(async (storage) => storage.createPaymentConfiguration(config));
+  }
+
+  async updatePaymentConfiguration(id: string, data: Partial<InsertPaymentConfiguration>): Promise<void> {
+    return this.withFallback(async (storage) => storage.updatePaymentConfiguration(id, data));
+  }
+
+  // Payment transactions
+  async createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
+    return this.withFallback(async (storage) => storage.createPaymentTransaction(transaction));
+  }
+
+  async getPaymentTransaction(id: string): Promise<PaymentTransaction | undefined> {
+    return this.withFallback(async (storage) => storage.getPaymentTransaction(id));
+  }
+
+  async getPaymentTransactionByRef(transactionRef: string): Promise<PaymentTransaction | undefined> {
+    return this.withFallback(async (storage) => storage.getPaymentTransactionByRef(transactionRef));
+  }
+
+  async updatePaymentTransactionStatus(id: string, status: string, gatewayResponse?: any): Promise<void> {
+    return this.withFallback(async (storage) => storage.updatePaymentTransactionStatus(id, status, gatewayResponse));
+  }
+
+  async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
+    return this.withFallback(async (storage) => storage.getPaymentTransactionsByPayer(payerId));
+  }
+
+  async getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]> {
+    return this.withFallback(async (storage) => storage.getPaymentTransactionsByOrder(orderId));
+  }
+
+  async getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]> {
+    return this.withFallback(async (storage) => storage.getPaymentTransactionsByOffer(curatedOfferId));
+  }
+
+  // Additional offer methods
+  async getCuratedOffer(id: string): Promise<CuratedOffer | undefined> {
+    return this.withFallback(async (storage) => storage.getCuratedOffer(id));
+  }
+
+  async getCuratedOffersByRFQ(rfqId: string): Promise<CuratedOffer[]> {
+    return this.withFallback(async (storage) => storage.getCuratedOffersByRFQ(rfqId));
+  }
+
+  async updateCuratedOfferPayment(id: string, paymentData: {
+    paymentLink?: string;
+    advancePaymentAmount?: number;
+    finalPaymentAmount?: number;
+    paymentDeadline?: Date;
+    paymentTerms?: string;
+  }): Promise<void> {
+    return this.withFallback(async (storage) => storage.updateCuratedOfferPayment(id, paymentData));
   }
 }
 
