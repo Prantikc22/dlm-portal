@@ -69,6 +69,23 @@ export const apiClient = {
     
     return response.json();
   },
+
+  patch: async (url: string, data: any, headers: Record<string, string> = {}) => {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  },
 };
 
 // Auth helpers
@@ -99,4 +116,5 @@ export const authenticatedApiClient = {
   post: (url: string, data: any) => apiClient.post(url, data, getAuthHeaders()),
   put: (url: string, data: any) => apiClient.put(url, data, getAuthHeaders()),
   delete: (url: string) => apiClient.delete(url, getAuthHeaders()),
+  patch: (url: string, data: any) => apiClient.patch(url, data, getAuthHeaders()),
 };

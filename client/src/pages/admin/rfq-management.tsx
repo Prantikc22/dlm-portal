@@ -34,6 +34,10 @@ export default function AdminRFQManagement() {
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/suppliers'),
   });
 
+  const verifiedSuppliers = suppliers.filter((s: any) => 
+    s.verificationLevel && ['bronze', 'silver', 'gold'].includes(s.verificationLevel)
+  );
+
   const inviteSuppliersMutation = useMutation({
     mutationFn: (data: { rfqId: string; supplierIds: string[] }) =>
       authenticatedApiClient.post('/api/protected/admin/invite', data),
@@ -73,9 +77,9 @@ export default function AdminRFQManagement() {
   };
 
   const getMatchingSuppliers = (rfq: any) => {
-    // Simple matching based on capabilities
+    // Simple matching based on capabilities and verification status
     const rfqProcess = rfq.details?.sku?.processName?.toLowerCase() || '';
-    return suppliers.filter((supplier: any) => {
+    return verifiedSuppliers.filter((supplier: any) => {
       const capabilities = supplier.profile?.capabilities || [];
       return capabilities.some((cap: string) => 
         cap.toLowerCase().includes(rfqProcess.split(' ')[0]) // Simple matching
@@ -261,7 +265,9 @@ export default function AdminRFQManagement() {
                                             </p>
                                             <div className="flex items-center space-x-2 mt-1">
                                               <Badge variant="secondary">
-                                                {supplier.profile?.verifiedStatus || 'Unverified'}
+                                                {supplier.profile?.verificationLevel ? 
+                                                  supplier.profile.verificationLevel.charAt(0).toUpperCase() + supplier.profile.verificationLevel.slice(1) : 
+                                                  'Unverified'}
                                               </Badge>
                                               <span className="text-xs text-muted-foreground">
                                                 MOQ: {supplier.profile?.moqDefault || 'N/A'}

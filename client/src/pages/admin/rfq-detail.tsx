@@ -143,7 +143,9 @@ export default function AdminRFQDetail() {
     updateStatusMutation.mutate(newStatus);
   };
 
-  const verifiedSuppliers = suppliers.filter((s: any) => s.status === 'verified');
+  const verifiedSuppliers = suppliers.filter((s: any) => 
+    s.verificationLevel && ['bronze', 'silver', 'gold'].includes(s.verificationLevel)
+  );
 
   return (
     <div className="p-8">
@@ -230,7 +232,9 @@ export default function AdminRFQDetail() {
                               <p className="text-sm text-muted-foreground">{supplier.user.email}</p>
                               <div className="flex items-center space-x-2 mt-1">
                                 <UserCheck className="h-3 w-3 text-green-500" />
-                                <span className="text-xs text-green-600">Verified</span>
+                                <span className="text-xs text-green-600">
+                                  {supplier.verificationLevel?.charAt(0).toUpperCase() + supplier.verificationLevel?.slice(1) || 'Verified'}
+                                </span>
                               </div>
                             </div>
                           </label>
