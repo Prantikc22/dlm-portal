@@ -574,7 +574,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin curated offers
   app.get("/api/protected/admin/offers", requireRole(["admin"]), async (req, res) => {
     try {
-      const offers = await storage.getCuratedOffers();
+      const rfqId = req.query.rfqId as string;
+      let offers;
+      if (rfqId) {
+        offers = await storage.getCuratedOffersByRFQ(rfqId);
+      } else {
+        offers = await storage.getCuratedOffers();
+      }
       res.json(offers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch offers" });
