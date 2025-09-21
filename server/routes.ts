@@ -397,9 +397,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get individual RFQ details
   app.get("/api/protected/rfqs/:id", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
-      const rfq = await storage.getRFQ(req.params.id);
+      const rfqId = req.params.id;
+      const rfq = await storage.getRFQ(rfqId);
+      
       if (!rfq) {
         return res.status(404).json({ error: "RFQ not found" });
       }
@@ -408,12 +411,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.user!.role === "buyer" && rfq.buyerId !== req.user!.id) {
         return res.status(403).json({ error: "Access denied" });
       }
+      
+      if (req.user!.role === "supplier") {
+        // Check if supplier is invited to this RFQ
+        const invites = await storage.getSupplierInvites(req.user!.id);
+        const hasInvite = invites.some(invite => invite.rfq.id === rfqId);
+        if (!hasInvite) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
 
       res.json(rfq);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch RFQ" });
+      console.error("❌ RFQ Detail Retrieval Failed:", error);
+      res.status(500).json({ error: "Failed to fetch RFQ details" });
     }
   });
+
+  // Update RFQ status (admin only)
+  app.patch("/api/protected/rfqs/:id/status", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const rfqId = req.params.id;
+      const { status } = req.body;
+      
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+
+      const validStatuses = ['draft', 'submitted', 'under_review', 'quoted', 'completed', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      await storage.updateRFQStatus(rfqId, status);
+      res.json({ success: true, status });
+    } catch (error) {
+      console.error("❌ RFQ Status Update Failed:", error);
+      res.status(500).json({ error: "Failed to update RFQ status" });
+    }
+  });
+
 
   // Quote routes
   app.post("/api/protected/quotes", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {

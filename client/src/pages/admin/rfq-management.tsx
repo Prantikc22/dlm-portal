@@ -20,6 +20,7 @@ export default function AdminRFQManagement() {
   const [selectedRFQ, setSelectedRFQ] = useState<any>(null);
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
