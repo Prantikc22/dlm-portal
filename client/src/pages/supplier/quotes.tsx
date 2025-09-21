@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useLocation } from 'wouter';
 import { Plus, FileText, Calculator, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ export default function SupplierQuotes() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: quotes = [], isLoading: quotesLoading } = useQuery({
     queryKey: ['/api/protected/quotes'],
@@ -213,6 +215,7 @@ export default function SupplierQuotes() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setLocation(`/supplier/rfq/${invite.rfq.id}`)}
                         data-testid={`button-view-rfq-details-${invite.invite.id}`}
                       >
                         View Details
@@ -431,7 +434,12 @@ export default function SupplierQuotes() {
                         {new Date(quote.createdAt).toLocaleDateString()}
                       </td>
                       <td className="py-4 px-6">
-                        <Button variant="ghost" size="sm" data-testid={`button-view-quote-${quote.id}`}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setLocation(`/supplier/rfq/${quote.rfqId}`)}
+                          data-testid={`button-view-quote-${quote.id}`}
+                        >
                           View Details
                         </Button>
                       </td>

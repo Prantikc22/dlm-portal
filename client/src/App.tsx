@@ -21,6 +21,7 @@ import SupplierDashboard from "@/pages/supplier/dashboard";
 import SupplierOnboarding from "@/pages/supplier/onboarding";
 import SupplierRFQs from "@/pages/supplier/rfqs";
 import SupplierQuotes from "@/pages/supplier/quotes";
+import SupplierRFQDetail from "@/pages/supplier/rfq-detail";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminRFQManagement from "@/pages/admin/rfq-management";
 import AdminRFQDetail from "@/pages/admin/rfq-detail";
@@ -106,6 +107,7 @@ function DashboardLayout() {
             <Route path="/supplier/onboarding" component={SupplierOnboarding} />
             <Route path="/supplier/rfqs" component={SupplierRFQs} />
             <Route path="/supplier/quotes" component={SupplierQuotes} />
+            <Route path="/supplier/rfq/:id" component={SupplierRFQDetail} />
             
             {/* Admin Routes */}
             <Route path="/admin/dashboard" component={AdminDashboard} />
