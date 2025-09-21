@@ -35,7 +35,7 @@ export default function AdminRFQManagement() {
   });
 
   const verifiedSuppliers = suppliers.filter((s: any) => 
-    s.verificationLevel && ['bronze', 'silver', 'gold'].includes(s.verificationLevel)
+    s.profile?.verifiedStatus && ['bronze', 'silver', 'gold'].includes(s.profile.verifiedStatus)
   );
 
   const inviteSuppliersMutation = useMutation({
@@ -265,8 +265,8 @@ export default function AdminRFQManagement() {
                                             </p>
                                             <div className="flex items-center space-x-2 mt-1">
                                               <Badge variant="secondary">
-                                                {supplier.profile?.verificationLevel ? 
-                                                  supplier.profile.verificationLevel.charAt(0).toUpperCase() + supplier.profile.verificationLevel.slice(1) : 
+                                                {supplier.profile?.verifiedStatus ? 
+                                                  supplier.profile.verifiedStatus.charAt(0).toUpperCase() + supplier.profile.verifiedStatus.slice(1) : 
                                                   'Unverified'}
                                               </Badge>
                                               <span className="text-xs text-muted-foreground">

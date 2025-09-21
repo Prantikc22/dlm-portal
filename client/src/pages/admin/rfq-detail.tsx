@@ -144,7 +144,7 @@ export default function AdminRFQDetail() {
   };
 
   const verifiedSuppliers = suppliers.filter((s: any) => 
-    s.verificationLevel && ['bronze', 'silver', 'gold'].includes(s.verificationLevel)
+    s.profile?.verifiedStatus && ['bronze', 'silver', 'gold'].includes(s.profile.verifiedStatus)
   );
 
   return (
@@ -233,7 +233,7 @@ export default function AdminRFQDetail() {
                               <div className="flex items-center space-x-2 mt-1">
                                 <UserCheck className="h-3 w-3 text-green-500" />
                                 <span className="text-xs text-green-600">
-                                  {supplier.verificationLevel?.charAt(0).toUpperCase() + supplier.verificationLevel?.slice(1) || 'Verified'}
+                                  {supplier.profile?.verifiedStatus?.charAt(0).toUpperCase() + supplier.profile?.verifiedStatus?.slice(1) || 'Verified'}
                                 </span>
                               </div>
                             </div>

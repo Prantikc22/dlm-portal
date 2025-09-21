@@ -26,6 +26,7 @@ import AdminRFQManagement from "@/pages/admin/rfq-management";
 import AdminRFQDetail from "@/pages/admin/rfq-detail";
 import AdminSupplierManagement from "@/pages/admin/supplier-management";
 import AdminOfferComposer from "@/pages/admin/offer-composer";
+import AdminOrderManagement from "@/pages/admin/order-management";
 import AdminPaymentConfig from "@/pages/admin/payment-config";
 import NotFound from "@/pages/not-found";
 
@@ -65,7 +66,7 @@ function DashboardLayout() {
     { icon: 'fas fa-file-alt', label: 'RFQ Management', href: '/admin/rfqs' },
     { icon: 'fas fa-users', label: 'Supplier Management', href: '/admin/suppliers' },
     { icon: 'fas fa-handshake', label: 'Offer Composer', href: '/admin/offers' },
-    { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '#' },
+    { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '/admin/orders' },
     { icon: 'fas fa-credit-card', label: 'Payment Configuration', href: '/admin/payment-config' },
     { icon: 'fas fa-chart-bar', label: 'Analytics', href: '#' },
   ];
@@ -112,6 +113,7 @@ function DashboardLayout() {
             <Route path="/admin/rfq/:id" component={AdminRFQDetail} />
             <Route path="/admin/suppliers" component={AdminSupplierManagement} />
             <Route path="/admin/offers" component={AdminOfferComposer} />
+            <Route path="/admin/orders" component={AdminOrderManagement} />
             <Route path="/admin/payment-config" component={AdminPaymentConfig} />
             
             {/* Default redirect based on role */}
