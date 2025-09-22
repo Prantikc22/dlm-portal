@@ -1299,6 +1299,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Failed to create order for payment transaction:', orderError);
           // Don't fail the payment transaction if order creation fails
         }
+
+        // Notify all admins about the completed payment
+        try {
+          const adminUsers = await storage.getUsersByRole('admin');
+          for (const admin of adminUsers) {
+            await storage.createNotification({
+              userId: admin.id,
+              type: 'payment_received',
+              title: 'Payment Completed',
+              message: `Buyer has completed advance payment for offer. Order has been automatically created and requires confirmation.`,
+              metadata: {
+                curatedOfferId: transaction.curatedOfferId,
+                transactionId: transaction.id,
+                payerId: transaction.payerId,
+                amount: transaction.amount
+              },
+              entityType: 'payment_transaction',
+              entityId: transaction.id
+            });
+          }
+          console.log(`Notified ${adminUsers.length} admins about completed payment ${transaction.id}`);
+        } catch (notificationError) {
+          console.error('Failed to create admin notifications for payment:', notificationError);
+          // Don't fail the payment transaction if notification creation fails
+        }
       }
       
       res.json(transaction);
