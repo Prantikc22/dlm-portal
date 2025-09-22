@@ -1444,6 +1444,10 @@ class FallbackStorage implements IStorage {
     return this.withFallback(async (storage) => storage.getUserByEmail(email));
   }
 
+  async getUsersByRole(role: string): Promise<User[]> {
+    return this.withFallback(async (storage) => storage.getUsersByRole(role));
+  }
+
   async createUser(user: InsertUser): Promise<User> {
     return this.withFallback(async (storage) => storage.createUser(user));
   }
@@ -1531,6 +1535,10 @@ class FallbackStorage implements IStorage {
 
   async getOrdersBySupplier(supplierId: string): Promise<Order[]> {
     return this.withFallback(async (storage) => storage.getOrdersBySupplier(supplierId));
+  }
+
+  async getAllOrders(): Promise<Order[]> {
+    return this.withFallback(async (storage) => storage.getAllOrders());
   }
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
