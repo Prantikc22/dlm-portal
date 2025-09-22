@@ -199,6 +199,10 @@ class InMemoryStorage implements IStorage {
     return this.users.find(u => u.email === email);
   }
 
+  async getUsersByRole(role: string): Promise<User[]> {
+    return this.users.filter(u => u.role === role);
+  }
+
   async createUser(user: InsertUser): Promise<User> {
     const newUser: User = {
       id: randomUUID(),
@@ -893,6 +897,7 @@ export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsersByRole(role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUserCompany(userId: string, companyId: string): Promise<void>;
 
@@ -1007,6 +1012,11 @@ export class SupabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
     return result[0];
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    const result = await db.select().from(users).where(eq(users.role, role));
+    return result;
   }
 
   async createUser(user: InsertUser): Promise<User> {

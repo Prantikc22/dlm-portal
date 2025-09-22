@@ -1143,8 +1143,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const transactionData = {
           transactionRef,
           curatedOfferId,
-          status: 'completed',
-          amount: parseFloat(amount),
+          status: 'completed' as const,
+          amount: parseFloat(amount).toString(),
+          netAmount: parseFloat(amount).toString(),
+          transactionType: 'advance_payment' as const,
           paymentMethod: 'online',
           payerId: req.body.payerId // Should come from webhook
         };
@@ -1203,7 +1205,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status,
         payerId: req.user!.id,
         paymentMethod: 'manual',
-        amount: 0 // Amount should be provided in real scenario
+        amount: '0', // Amount should be provided in real scenario
+        netAmount: '0',
+        transactionType: 'advance_payment' as const
       };
       
       const transaction = await storage.createPaymentTransaction(transactionData);
