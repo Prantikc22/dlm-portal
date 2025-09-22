@@ -45,33 +45,35 @@ function DashboardLayout() {
     return 'buyer';
   });
 
+  const currentPath = window.location.pathname;
+  
   const buyerSidebarItems = [
-    { icon: 'fas fa-home', label: 'Dashboard', href: '/buyer/dashboard', active: true },
-    { icon: 'fas fa-plus-circle', label: 'Create RFQ', href: '/buyer/create-rfq' },
-    { icon: 'fas fa-file-alt', label: 'My RFQs', href: '/buyer/rfqs' },
-    { icon: 'fas fa-handshake', label: 'Offers', href: '/buyer/offers' },
-    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/buyer/orders' },
-    { icon: 'fas fa-credit-card', label: 'Payments', href: '/buyer/payments' },
-    { icon: 'fas fa-headset', label: 'Support', href: '#' },
+    { icon: 'fas fa-home', label: 'Dashboard', href: '/buyer/dashboard', active: currentPath === '/buyer/dashboard' },
+    { icon: 'fas fa-plus-circle', label: 'Create RFQ', href: '/buyer/create-rfq', active: currentPath === '/buyer/create-rfq' },
+    { icon: 'fas fa-file-alt', label: 'My RFQs', href: '/buyer/rfqs', active: currentPath === '/buyer/rfqs' },
+    { icon: 'fas fa-handshake', label: 'Offers', href: '/buyer/offers', active: currentPath === '/buyer/offers' },
+    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/buyer/orders', active: currentPath === '/buyer/orders' },
+    { icon: 'fas fa-credit-card', label: 'Payments', href: '/buyer/payments', active: currentPath === '/buyer/payments' },
+    { icon: 'fas fa-headset', label: 'Support', href: '#', active: false },
   ];
 
   const supplierSidebarItems = [
-    { icon: 'fas fa-home', label: 'Dashboard', href: '/supplier/dashboard', active: true },
-    { icon: 'fas fa-file-invoice', label: 'Invited RFQs', href: '/supplier/rfqs' },
-    { icon: 'fas fa-quote-right', label: 'My Quotes', href: '/supplier/quotes' },
-    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/supplier/orders' },
-    { icon: 'fas fa-money-bill-wave', label: 'Payouts', href: '/supplier/payouts' },
-    { icon: 'fas fa-user-cog', label: 'Profile', href: '/supplier/onboarding' },
+    { icon: 'fas fa-home', label: 'Dashboard', href: '/supplier/dashboard', active: currentPath === '/supplier/dashboard' },
+    { icon: 'fas fa-file-invoice', label: 'Invited RFQs', href: '/supplier/rfqs', active: currentPath === '/supplier/rfqs' },
+    { icon: 'fas fa-quote-right', label: 'My Quotes', href: '/supplier/quotes', active: currentPath === '/supplier/quotes' },
+    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/supplier/orders', active: currentPath === '/supplier/orders' },
+    { icon: 'fas fa-money-bill-wave', label: 'Payouts', href: '/supplier/payouts', active: currentPath === '/supplier/payouts' },
+    { icon: 'fas fa-user-cog', label: 'Profile', href: '/supplier/onboarding', active: currentPath === '/supplier/onboarding' },
   ];
 
   const adminSidebarItems = [
-    { icon: 'fas fa-home', label: 'Dashboard', href: '/admin/dashboard', active: true },
-    { icon: 'fas fa-file-alt', label: 'RFQ Management', href: '/admin/rfqs' },
-    { icon: 'fas fa-users', label: 'Supplier Management', href: '/admin/suppliers' },
-    { icon: 'fas fa-handshake', label: 'Offer Composer', href: '/admin/offers' },
-    { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '/admin/orders' },
-    { icon: 'fas fa-credit-card', label: 'Payment Configuration', href: '/admin/payment-config' },
-    { icon: 'fas fa-chart-bar', label: 'Analytics', href: '#' },
+    { icon: 'fas fa-home', label: 'Dashboard', href: '/admin/dashboard', active: currentPath === '/admin/dashboard' },
+    { icon: 'fas fa-file-alt', label: 'RFQ Management', href: '/admin/rfqs', active: currentPath === '/admin/rfqs' },
+    { icon: 'fas fa-users', label: 'Supplier Management', href: '/admin/suppliers', active: currentPath === '/admin/suppliers' },
+    { icon: 'fas fa-handshake', label: 'Offer Composer', href: '/admin/offers', active: currentPath === '/admin/offers' },
+    { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '/admin/orders', active: currentPath === '/admin/orders' },
+    { icon: 'fas fa-credit-card', label: 'Payment Configuration', href: '/admin/payment-config', active: currentPath === '/admin/payment-config' },
+    { icon: 'fas fa-chart-bar', label: 'Analytics', href: '#', active: false },
   ];
 
   const getSidebarItems = () => {

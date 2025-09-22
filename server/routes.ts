@@ -284,6 +284,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Protected routes with secure authentication
   app.use("/api/protected", authenticateUserSmart);
 
+  // Buyer-specific routes
+  app.get("/api/protected/buyer/offers", async (req: AuthenticatedRequest, res) => {
+    try {
+      // Get all published curated offers for this buyer
+      const offers = await storage.getCuratedOffersByBuyer(req.user!.id);
+      res.json(offers);
+    } catch (error) {
+      console.error('Get buyer offers error:', error);
+      res.status(500).json({ error: "Failed to fetch offers" });
+    }
+  });
+
   // Company routes
   app.post("/api/protected/companies", async (req: AuthenticatedRequest, res) => {
     try {

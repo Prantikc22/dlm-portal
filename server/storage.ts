@@ -687,6 +687,17 @@ class InMemoryStorage implements IStorage {
     }).filter(item => item.rfq);
   }
 
+  async getCuratedOffersByBuyer(buyerId: string): Promise<Array<CuratedOffer & { rfq: RFQ }>> {
+    if (!this.curatedOffers) this.curatedOffers = [];
+    return this.curatedOffers
+      .filter(offer => offer.publishedAt !== null) // Only published offers
+      .map(offer => {
+        const rfq = this.rfqs.find(r => r.id === offer.rfqId && r.buyerId === buyerId);
+        return rfq ? { ...offer, rfq } : null;
+      })
+      .filter(item => item !== null) as Array<CuratedOffer & { rfq: RFQ }>;
+  }
+
   async publishCuratedOffer(offerId: string): Promise<void> {
     if (!this.curatedOffers) this.curatedOffers = [];
     const offer = this.curatedOffers.find(o => o.id === offerId);
@@ -976,6 +987,7 @@ export interface IStorage {
   getAllQuotes(): Promise<Array<Quote & { rfq: RFQ; supplier: User }>>;
   createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer>;
   getCuratedOffers(): Promise<Array<CuratedOffer & { rfq: RFQ }>>;
+  getCuratedOffersByBuyer(buyerId: string): Promise<Array<CuratedOffer & { rfq: RFQ }>>;
   publishCuratedOffer(offerId: string): Promise<void>;
 
   // Notification management
@@ -1230,6 +1242,23 @@ export class SupabaseStorage implements IStorage {
       })
       .from(curatedOffers)
       .innerJoin(rfqs, eq(curatedOffers.rfqId, rfqs.id))
+      .orderBy(desc(curatedOffers.publishedAt));
+    
+    return result.map((r: any) => ({ ...r.offer, rfq: r.rfq }));
+  }
+
+  async getCuratedOffersByBuyer(buyerId: string): Promise<Array<CuratedOffer & { rfq: RFQ }>> {
+    const result = await db
+      .select({
+        offer: curatedOffers,
+        rfq: rfqs,
+      })
+      .from(curatedOffers)
+      .innerJoin(rfqs, eq(curatedOffers.rfqId, rfqs.id))
+      .where(and(
+        eq(rfqs.buyerId, buyerId),
+        isNotNull(curatedOffers.publishedAt)
+      ))
       .orderBy(desc(curatedOffers.publishedAt));
     
     return result.map((r: any) => ({ ...r.offer, rfq: r.rfq }));
@@ -1537,6 +1566,10 @@ class FallbackStorage implements IStorage {
 
   async getCuratedOffers(): Promise<any> {
     return this.withFallback(async (storage) => storage.getCuratedOffers());
+  }
+
+  async getCuratedOffersByBuyer(buyerId: string): Promise<Array<CuratedOffer & { rfq: RFQ }>> {
+    return this.withFallback(async (storage) => storage.getCuratedOffersByBuyer(buyerId));
   }
 
   async publishCuratedOffer(offerId: string): Promise<void> {
