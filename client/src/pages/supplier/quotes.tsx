@@ -80,6 +80,7 @@ export default function SupplierQuotes() {
 
     const quoteData = {
       rfqId: selectedRFQ.rfq.id,
+      status: 'submitted',
       quoteJson: {
         ...data,
         rfqItems: selectedRFQ.rfq.details?.items?.map((item: any) => ({

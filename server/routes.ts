@@ -589,8 +589,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/protected/admin/curated-offers", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
     try {
+      // Transform paymentDeadline from string to Date if present
+      const requestBody = { ...req.body };
+      if (requestBody.paymentDeadline && typeof requestBody.paymentDeadline === 'string') {
+        requestBody.paymentDeadline = new Date(requestBody.paymentDeadline);
+      }
+      
       const offerData = insertCuratedOfferSchema.parse({
-        ...req.body,
+        ...requestBody,
         adminId: req.user!.id
       });
       
