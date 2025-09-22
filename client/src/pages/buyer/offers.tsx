@@ -9,6 +9,8 @@ import { Clock, Shield, Award, CreditCard, ExternalLink, Calendar, DollarSign } 
 import { authenticatedApiClient } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { CuratedOffer } from '@shared/schema';
+import { useLocation } from 'wouter';
+import { queryClient, apiRequest } from '@/lib/queryClient';
 
 // Interface for offer structure used in the component
 interface OfferData {
@@ -31,6 +33,7 @@ export default function BuyerOffers() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentRef, setPaymentRef] = useState('');
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Fetch actual offers from API
   const { data: offers = [], isLoading } = useQuery({
@@ -114,7 +117,12 @@ export default function BuyerOffers() {
         paymentMethod: 'external'
       };
       
-      await authenticatedApiClient.post('/api/protected/payment-transactions', transactionData);
+      // Use apiRequest following project conventions
+      await apiRequest('POST', '/api/protected/payment-transactions', transactionData);
+      
+      // Invalidate relevant caches
+      await queryClient.invalidateQueries({ queryKey: ['/api/protected/buyer/offers'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/protected/orders'] });
       
       toast({
         title: "Payment Recorded!",
@@ -122,6 +130,9 @@ export default function BuyerOffers() {
       });
       
       setShowPaymentDialog(false);
+      
+      // Navigate immediately after successful payment
+      setLocation('/buyer/orders');
       
     } catch (error) {
       console.error('Payment recording error:', error);
