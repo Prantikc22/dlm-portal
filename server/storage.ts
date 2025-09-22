@@ -755,123 +755,9 @@ class InMemoryStorage implements IStorage {
       .forEach(n => n.isRead = true);
   }
 
-  // Payment methods
-  async getPaymentMethods(): Promise<PaymentMethod[]> {
-    return this.paymentMethods;
-  }
-
-  async getActivePaymentMethods(): Promise<PaymentMethod[]> {
-    return this.paymentMethods.filter(m => m.isActive);
-  }
-
-  async createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod> {
-    const newMethod: PaymentMethod = {
-      id: randomUUID(),
-      name: method.name,
-      type: method.type,
-      isActive: method.isActive || true,
-      processingFee: method.processingFee || 0,
-      description: method.description || null,
-      supportedCurrencies: method.supportedCurrencies || ['USD'],
-      configuration: method.configuration || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.paymentMethods.push(newMethod);
-    return newMethod;
-  }
-
-  async updatePaymentMethod(id: string, data: Partial<InsertPaymentMethod>): Promise<void> {
-    const method = this.paymentMethods.find(m => m.id === id);
-    if (method) {
-      Object.assign(method, { ...data, updatedAt: new Date() });
-    }
-  }
-
-  async deletePaymentMethod(id: string): Promise<void> {
-    const index = this.paymentMethods.findIndex(m => m.id === id);
-    if (index !== -1) {
-      this.paymentMethods.splice(index, 1);
-    }
-  }
-
-  // Payment configurations
-  async getPaymentConfigurations(): Promise<PaymentConfiguration[]> {
-    return this.paymentConfigurations;
-  }
-
-  async getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined> {
-    return this.paymentConfigurations.find(c => c.configType === configType);
-  }
-
-  async createPaymentConfiguration(config: InsertPaymentConfiguration): Promise<PaymentConfiguration> {
-    const newConfig: PaymentConfiguration = {
-      id: randomUUID(),
-      configType: config.configType,
-      configValue: config.configValue,
-      isActive: config.isActive || true,
-      description: config.description || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.paymentConfigurations.push(newConfig);
-    return newConfig;
-  }
-
-  async updatePaymentConfiguration(id: string, data: Partial<InsertPaymentConfiguration>): Promise<void> {
-    const config = this.paymentConfigurations.find(c => c.id === id);
-    if (config) {
-      Object.assign(config, { ...data, updatedAt: new Date() });
-    }
-  }
-
-  // Payment transactions
-  async createPaymentTransaction(transaction: InsertPaymentTransaction): Promise<PaymentTransaction> {
-    const newTransaction: PaymentTransaction = {
-      id: randomUUID(),
-      payerId: transaction.payerId,
-      amount: transaction.amount,
-      currency: transaction.currency,
-      paymentMethodId: transaction.paymentMethodId,
-      status: transaction.status || 'pending',
-      transactionRef: transaction.transactionRef,
-      gatewayResponse: transaction.gatewayResponse || null,
-      orderId: transaction.orderId || null,
-      curatedOfferId: transaction.curatedOfferId || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.paymentTransactions.push(newTransaction);
-    return newTransaction;
-  }
-
-  async getPaymentTransaction(id: string): Promise<PaymentTransaction | undefined> {
-    return this.paymentTransactions.find(t => t.id === id);
-  }
-
-  async getPaymentTransactionByRef(transactionRef: string): Promise<PaymentTransaction | undefined> {
-    return this.paymentTransactions.find(t => t.transactionRef === transactionRef);
-  }
-
-  async updatePaymentTransactionStatus(id: string, status: string, gatewayResponse?: any): Promise<void> {
-    const transaction = this.paymentTransactions.find(t => t.id === id);
-    if (transaction) {
-      transaction.status = status as any;
-      transaction.gatewayResponse = gatewayResponse || null;
-      transaction.updatedAt = new Date();
-    }
-  }
-
-  async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
-    return this.paymentTransactions.filter(t => t.payerId === payerId);
-  }
-
-  async getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]> {
-    return this.paymentTransactions.filter(t => t.orderId === orderId);
-  }
-
-  async getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]> {
-    return this.paymentTransactions.filter(t => t.curatedOfferId === curatedOfferId);
+  async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
+    // Return empty array as InMemoryStorage doesn't track payouts yet
+    return [];
   }
 }
 
@@ -1417,6 +1303,11 @@ export class SupabaseStorage implements IStorage {
       paymentDeadline: paymentData.paymentDeadline || null,
       paymentTerms: paymentData.paymentTerms || null,
     }).where(eq(curatedOffers.id, id));
+  }
+
+  async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
+    // Return empty array as payouts are not implemented yet
+    return [];
   }
 }
 
