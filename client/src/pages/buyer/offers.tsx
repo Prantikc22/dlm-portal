@@ -312,6 +312,28 @@ export default function BuyerOffers() {
                 </div>
               </div>
 
+              {/* Mark as Paid Section */}
+              <div className="border-t pt-3 mt-4">
+                <p className="text-sm text-muted-foreground mb-2">After completing payment externally:</p>
+                <div className="space-y-2">
+                  <Input 
+                    placeholder="Enter transaction reference (optional)"
+                    value={paymentRef}
+                    onChange={(e) => setPaymentRef(e.target.value)}
+                    data-testid="input-transaction-ref"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => selectedOffer && handleMarkAsPaid(selectedOffer, paymentRef)}
+                    data-testid="button-mark-paid"
+                  >
+                    Mark as Paid
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex space-x-2">
                 <Button 
                   variant="outline" 
