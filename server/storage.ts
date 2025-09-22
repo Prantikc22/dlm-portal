@@ -1163,6 +1163,10 @@ export class SupabaseStorage implements IStorage {
     return await db.select().from(orders).where(eq(orders.supplierId, supplierId)).orderBy(desc(orders.createdAt));
   }
 
+  async getAllOrders(): Promise<Order[]> {
+    return await db.select().from(orders).orderBy(desc(orders.createdAt));
+  }
+
   async updateOrderStatus(id: string, status: string): Promise<void> {
     await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
   }
