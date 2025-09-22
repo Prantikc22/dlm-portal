@@ -293,41 +293,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate totalPrice for each offer based on RFQ quantity
       const enrichedOffers = await Promise.all(offers.map(async (offer: any) => {
         try {
-          // Get the RFQ to find quantity
+          // Get the RFQ to find total quantity across all items
           const rfq = await storage.getRFQ(offer.rfqId);
           const parsedRfqDetails = rfqDetailsSchema.safeParse(rfq?.details);
           const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
           
-          const quantity = parsedRfqDetails.success ? parsedRfqDetails.data.items[0]?.quantity || 100 : 100;
+          // Calculate total quantity by summing all RFQ items
+          const totalQuantity = parsedRfqDetails.success ? 
+            parsedRfqDetails.data.items.reduce((sum, item) => sum + (item.quantity || 1), 0) : 100;
           const unitPrice = parsedOfferDetails.success ? parsedOfferDetails.data.unitPrice : 0;
-          const totalPrice = unitPrice * quantity;
+          const totalPrice = unitPrice * totalQuantity;
           
           return {
             ...offer,
             // Keep the unit price separate from total price
             unitPrice: unitPrice,
             totalPrice: totalPrice,
-            quantity: quantity,
+            quantity: totalQuantity,
             // Update details to ensure consistency
             details: {
               ...offer.details,
               unitPrice: unitPrice,
-              quantity: quantity
+              quantity: totalQuantity
             }
           };
         } catch (error) {
           console.error('Error enriching offer:', error);
           // Fallback calculation
           const unitPrice = offer.details?.unitPrice || 0;
+          const fallbackQuantity = 100;
           return {
             ...offer,
             unitPrice: unitPrice,
-            totalPrice: unitPrice * 100, // Default quantity fallback
-            quantity: 100,
+            totalPrice: unitPrice * fallbackQuantity,
+            quantity: fallbackQuantity,
             details: {
               ...offer.details,
               unitPrice: unitPrice,
-              quantity: 100
+              quantity: fallbackQuantity
             }
           };
         }
@@ -1281,12 +1284,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   const offerDetails = parsedOfferDetails.data;
                   const rfqDetails = parsedRfqDetails.data;
                   
+                  // Calculate base total: unitPrice * total quantity across all items
                   const itemsTotal = rfqDetails.items.reduce((sum: number, item) => {
                     return sum + (offerDetails.unitPrice * (item.quantity || 1));
                   }, 0);
-                  // Add tooling cost if present in offer details
-                  const toolingCost = offerDetails.toolingCost || (selectedQuote?.quoteJson as any)?.toolingCost || 0;
+                  
+                  // Only add tooling cost if explicitly set - don't add it automatically
+                  const toolingCost = offerDetails.toolingCost || 0;
                   totalAmount = (itemsTotal + toolingCost).toString();
+                  
+                  console.log(`Order calculation: unitPrice=${offerDetails.unitPrice}, items=${rfqDetails.items.length}, itemsTotal=${itemsTotal}, toolingCost=${toolingCost}, finalTotal=${totalAmount}`);
                 } else if (offer.totalPrice) {
                   // Use the offer's total price if available
                   totalAmount = offer.totalPrice.toString();

@@ -135,7 +135,11 @@ export default function AdminOfferComposer() {
   const handleSubmitOffer = (data: OfferForm) => {
     if (!selectedRFQ) return;
 
-    const totalPrice = data.unitPrice * (selectedRFQ.details?.items?.[0]?.quantity || 1);
+    // Calculate total price by summing all RFQ items, not just the first one
+    const totalPrice = selectedRFQ.details?.items?.reduce((sum: number, item: any) => {
+      return sum + (data.unitPrice * (item.quantity || 1));
+    }, 0) || (data.unitPrice * 1);
+    
     const paymentAmounts = calculatePaymentAmounts(totalPrice, data.advancePaymentPercentage);
 
     const offerData = {
