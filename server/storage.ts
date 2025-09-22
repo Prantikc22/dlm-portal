@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq, and, desc, like, inArray, sql, gte } from "drizzle-orm";
+import { eq, and, desc, like, inArray, sql, gte, isNotNull } from "drizzle-orm";
 import { 
   users, companies, supplierProfiles, skus, rfqs, rfqItems, 
   supplierInvites, quotes, curatedOffers, orders, documents, notifications,
