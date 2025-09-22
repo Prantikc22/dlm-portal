@@ -295,15 +295,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Get the RFQ to find quantity
           const rfq = await storage.getRFQ(offer.rfqId);
-          const quantity = rfq?.details?.quantity || rfq?.details?.items?.[0]?.quantity || 1;
+          const quantity = rfq?.details?.quantity || rfq?.details?.items?.[0]?.quantity || 100;
           const unitPrice = offer.details?.unitPrice || 0;
           const totalPrice = unitPrice * quantity;
           
           return {
             ...offer,
-            totalPrice,
-            quantity,
-            unitPrice
+            // Keep the unit price separate from total price
+            unitPrice: unitPrice,
+            totalPrice: totalPrice,
+            quantity: quantity,
+            // Update details to ensure consistency
+            details: {
+              ...offer.details,
+              unitPrice: unitPrice,
+              quantity: quantity
+            }
           };
         } catch (error) {
           console.error('Error enriching offer:', error);
@@ -311,9 +318,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const unitPrice = offer.details?.unitPrice || 0;
           return {
             ...offer,
+            unitPrice: unitPrice,
             totalPrice: unitPrice * 100, // Default quantity fallback
             quantity: 100,
-            unitPrice
+            details: {
+              ...offer.details,
+              unitPrice: unitPrice,
+              quantity: 100
+            }
           };
         }
       }));

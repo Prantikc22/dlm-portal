@@ -41,12 +41,15 @@ export default function BuyerOffers() {
     rfqId: offer.rfqId,
     rfqTitle: offer.rfq?.title || offer.rfq?.description || 'RFQ',
     type: offer.title || 'Standard',
-    price: parseFloat(offer.totalPrice || offer.details?.unitPrice || '0'),
-    leadTime: offer.details?.leadTime || 14,
+    price: parseFloat(offer.totalPrice || '0'), // Use totalPrice for total order value
+    unitPrice: parseFloat(offer.unitPrice || offer.details?.unitPrice || '0'), // Keep unit price separate
+    quantity: offer.quantity || 100,
+    leadTime: offer.details?.leadTime || offer.details?.leadTimeDays || 14,
     warranty: offer.details?.warranty || '6 months',
     quality: offer.details?.qualityAssurance || 'Standard quality check',
     features: offer.details?.features || ['Quality Assured', 'On-time Delivery'],
     recommended: false,
+    paymentLink: offer.paymentLink, // Include payment link from admin
   }));
 
   const formatCurrency = (amount: number) => {
@@ -165,7 +168,7 @@ export default function BuyerOffers() {
                     
                     <CardHeader className="text-center">
                       <CardTitle className="text-lg">{offer.type} Offer</CardTitle>
-                      <div className="text-2xl font-bold">₹{offer.price.toLocaleString()}</div>
+                      <div className="text-2xl font-bold">₹{(offer.unitPrice || offer.price / (offer.quantity || 100)).toLocaleString()}</div>
                       <p className="text-sm text-muted-foreground">per piece</p>
                     </CardHeader>
                     
@@ -208,13 +211,13 @@ export default function BuyerOffers() {
                           <div>
                             <p className="text-blue-700 dark:text-blue-300">Advance (30%)</p>
                             <p className="font-bold text-blue-900 dark:text-blue-100">
-                              {formatCurrency(calculatePaymentBreakdown(offer.price * 50).advanceAmount)}
+                              {formatCurrency(calculatePaymentBreakdown(offer.price).advanceAmount)}
                             </p>
                           </div>
                           <div>
                             <p className="text-blue-700 dark:text-blue-300">Final (70%)</p>
                             <p className="font-bold text-blue-900 dark:text-blue-100">
-                              {formatCurrency(calculatePaymentBreakdown(offer.price * 50).finalAmount)}
+                              {formatCurrency(calculatePaymentBreakdown(offer.price).finalAmount)}
                             </p>
                           </div>
                         </div>
@@ -222,7 +225,7 @@ export default function BuyerOffers() {
                           <div className="flex items-center justify-between">
                             <span className="text-blue-700 dark:text-blue-300 text-sm">Total Order Value</span>
                             <span className="font-bold text-blue-900 dark:text-blue-100">
-                              {formatCurrency(offer.price * 50)}
+                              {formatCurrency(offer.price)}
                             </span>
                           </div>
                         </div>
