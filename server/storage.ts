@@ -439,10 +439,6 @@ class InMemoryStorage implements IStorage {
     return this.orders;
   }
 
-  async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
-    // Return mock payouts for now - in real implementation this would fetch from payouts table
-    return [];
-  }
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
     const order = this.orders.find(o => o.id === id);
@@ -676,6 +672,11 @@ class InMemoryStorage implements IStorage {
       supplierIndicators: offer.supplierIndicators || null,
       publishedAt: null,
       expiresAt: offer.expiresAt ? new Date(offer.expiresAt) : null,
+      paymentLink: offer.paymentLink || null,
+      advancePaymentAmount: offer.advancePaymentAmount || null,
+      finalPaymentAmount: offer.finalPaymentAmount || null,
+      paymentDeadline: offer.paymentDeadline ? new Date(offer.paymentDeadline) : null,
+      paymentTerms: offer.paymentTerms || null,
     };
     // Add to a curated offers array (we'll need to add this property)
     if (!this.curatedOffers) this.curatedOffers = [];
@@ -901,7 +902,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getUsersByRole(role: string): Promise<User[]> {
-    const result = await db.select().from(users).where(eq(users.role, role));
+    const result = await db.select().from(users).where(eq(users.role, role as any));
     return result;
   }
 
@@ -1230,7 +1231,7 @@ export class SupabaseStorage implements IStorage {
   }
 
   async getPaymentConfiguration(configType: string): Promise<PaymentConfiguration | undefined> {
-    const result = await db.select().from(paymentConfigurations).where(eq(paymentConfigurations.configType, configType)).limit(1);
+    const result = await db.select().from(paymentConfigurations).where(eq(paymentConfigurations.configType, configType as any)).limit(1);
     return result[0];
   }
 

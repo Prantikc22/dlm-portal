@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
-import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, insertNotificationSchema, insertPaymentMethodSchema, insertPaymentConfigurationSchema, insertPaymentTransactionSchema, supplierVerificationEnum } from "@shared/schema";
+import { insertUserSchema, insertCompanySchema, insertSupplierProfileSchema, insertRFQSchema, insertQuoteSchema, insertDocumentSchema, insertCuratedOfferSchema, insertNotificationSchema, insertPaymentMethodSchema, insertPaymentConfigurationSchema, insertPaymentTransactionSchema, supplierVerificationEnum, offerDetailsSchema, rfqDetailsSchema, type OfferDetails, type RFQDetails } from "@shared/schema";
 import { z } from "zod";
 import { ZodError } from "zod";
 
@@ -295,8 +295,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           // Get the RFQ to find quantity
           const rfq = await storage.getRFQ(offer.rfqId);
-          const quantity = rfq?.details?.quantity || rfq?.details?.items?.[0]?.quantity || 100;
-          const unitPrice = offer.details?.unitPrice || 0;
+          const parsedRfqDetails = rfqDetailsSchema.safeParse(rfq?.details);
+          const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
+          
+          const quantity = parsedRfqDetails.success ? parsedRfqDetails.data.items[0]?.quantity || 100 : 100;
+          const unitPrice = parsedOfferDetails.success ? parsedOfferDetails.data.unitPrice : 0;
           const totalPrice = unitPrice * quantity;
           
           return {
@@ -1155,8 +1158,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const rfq = await storage.getRFQ(offer.rfqId);
           if (rfq) {
             const quotes = await storage.getQuotesByRFQ(offer.rfqId);
+            const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
+            const offerUnitPrice = parsedOfferDetails.success ? parsedOfferDetails.data.unitPrice : 0;
+            
             const selectedQuote = quotes.find(q => 
-              Math.abs(q.quoteJson?.unitPrice - offer.details?.unitPrice) < 0.01
+              Math.abs((q.quoteJson as any)?.unitPrice - offerUnitPrice) < 0.01
             ) || quotes[0];
             
             const orderData = {
@@ -1251,9 +1257,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Try to find the selected quote from supplier indicators
                 if (offer.supplierIndicators && quotes.length > 0) {
+                  // Parse offer details safely
+                  const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
+                  const offerDetails = parsedOfferDetails.success ? parsedOfferDetails.data : null;
+                  
                   // Find the quote that matches the offer details
                   selectedQuote = quotes.find(q => 
-                    Math.abs(q.quoteJson?.unitPrice - offer.details?.unitPrice) < 0.01
+                    offerDetails?.unitPrice && Math.abs((q.quoteJson as any)?.unitPrice - offerDetails.unitPrice) < 0.01
                   ) || quotes[0];
                   supplierId = selectedQuote.supplierId;
                 } else {
@@ -1264,12 +1274,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Calculate total amount from offer details and RFQ items
                 let totalAmount = '0';
-                if (offer.details?.unitPrice && rfq.details?.items) {
-                  const itemsTotal = rfq.details.items.reduce((sum: number, item: any) => {
-                    return sum + (offer.details.unitPrice * (item.quantity || 1));
+                const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
+                const parsedRfqDetails = rfqDetailsSchema.safeParse(rfq.details);
+                
+                if (parsedOfferDetails.success && parsedRfqDetails.success) {
+                  const offerDetails = parsedOfferDetails.data;
+                  const rfqDetails = parsedRfqDetails.data;
+                  
+                  const itemsTotal = rfqDetails.items.reduce((sum: number, item) => {
+                    return sum + (offerDetails.unitPrice * (item.quantity || 1));
                   }, 0);
                   // Add tooling cost if present in offer details
-                  const toolingCost = offer.details?.toolingCost || selectedQuote?.quoteJson?.toolingCost || 0;
+                  const toolingCost = offerDetails.toolingCost || (selectedQuote?.quoteJson as any)?.toolingCost || 0;
                   totalAmount = (itemsTotal + toolingCost).toString();
                 } else if (offer.totalPrice) {
                   // Use the offer's total price if available

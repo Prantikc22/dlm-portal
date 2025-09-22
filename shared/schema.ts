@@ -396,6 +396,32 @@ export const insertPaymentTransactionSchema = createInsertSchema(paymentTransact
   updatedAt: true,
 });
 
+// Type definitions for offer details and related structures
+export const offerDetailsSchema = z.object({
+  unitPrice: z.number(),
+  toolingCost: z.number().optional(),
+  leadTime: z.number().optional(),
+  moq: z.number().optional(),
+});
+
+export const rfqItemDetailsSchema = z.object({
+  quantity: z.number(),
+  skuCode: z.string(),
+  specifications: z.record(z.any()).optional(),
+});
+
+export const rfqDetailsSchema = z.object({
+  items: z.array(rfqItemDetailsSchema),
+  budgetRange: z.object({
+    min: z.number(),
+    max: z.number(),
+  }).optional(),
+});
+
+export type OfferDetails = z.infer<typeof offerDetailsSchema>;
+export type RFQItemDetails = z.infer<typeof rfqItemDetailsSchema>;
+export type RFQDetails = z.infer<typeof rfqDetailsSchema>;
+
 // Insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
