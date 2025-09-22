@@ -1168,6 +1168,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
               Math.abs((q.quoteJson as any)?.unitPrice - offerUnitPrice) < 0.01
             ) || quotes[0];
             
+            // Calculate correct total amount from offer details (NOT payment amount)
+            let totalAmount = '0';
+            const parsedRfqDetails = rfqDetailsSchema.safeParse(rfq.details);
+            
+            if (parsedOfferDetails.success && parsedRfqDetails.success) {
+              const offerDetails = parsedOfferDetails.data;
+              const rfqDetails = parsedRfqDetails.data;
+              
+              // Calculate base total: unitPrice * total quantity across all items
+              const itemsTotal = rfqDetails.items.reduce((sum: number, item) => {
+                return sum + (offerDetails.unitPrice * (item.quantity || 1));
+              }, 0);
+              
+              // Only add tooling cost if explicitly set
+              const toolingCost = offerDetails.toolingCost || 0;
+              totalAmount = (itemsTotal + toolingCost).toString();
+              
+              console.log(`Webhook order calculation: unitPrice=${offerDetails.unitPrice}, items=${rfqDetails.items.length}, itemsTotal=${itemsTotal}, toolingCost=${toolingCost}, finalTotal=${totalAmount}`);
+            } else if (offer.totalPrice) {
+              // Use the offer's total price if available
+              totalAmount = offer.totalPrice.toString();
+            }
+            
             const orderData = {
               rfqId: offer.rfqId,
               curatedOfferId: offer.id,
@@ -1175,13 +1198,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               adminId: offer.adminId,
               supplierId: selectedQuote?.supplierId,
               status: 'deposit_paid',
-              totalAmount: amount,
+              totalAmount: totalAmount,
               depositPaid: true,
               escrowTxRef: transactionRef
             };
             
             await storage.createOrder(orderData);
-            console.log(`✅ Order auto-created for payment ${transactionRef}`);
+            console.log(`✅ Order auto-created for payment ${transactionRef} with correct total: ${totalAmount}`);
           }
         }
       }
