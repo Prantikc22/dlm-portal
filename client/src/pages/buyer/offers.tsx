@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Clock, Shield, Award, CreditCard, ExternalLink, Calendar, DollarSign } from 'lucide-react';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { CuratedOffer } from '@shared/schema';
 import { useLocation } from 'wouter';
@@ -58,9 +59,7 @@ export default function BuyerOffers() {
     paymentLink: offer.paymentLink, // Include payment link from admin
   }));
 
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN')}`;
-  };
+  // Using shared formatCurrency utility from @/lib/utils
 
   const calculatePaymentBreakdown = (totalPrice: number, advancePercentage: number = 30) => {
     const advanceAmount = Math.round(totalPrice * (advancePercentage / 100));
@@ -188,7 +187,7 @@ export default function BuyerOffers() {
                     
                     <CardHeader className="text-center">
                       <CardTitle className="text-lg">{offer.type} Offer</CardTitle>
-                      <div className="text-2xl font-bold">₹{(offer.unitPrice || offer.price / (offer.quantity || 100)).toLocaleString()}</div>
+                      <div className="text-2xl font-bold">{formatCurrency(offer.unitPrice || offer.price / (offer.quantity || 100))}</div>
                       <p className="text-sm text-muted-foreground">per piece</p>
                     </CardHeader>
                     

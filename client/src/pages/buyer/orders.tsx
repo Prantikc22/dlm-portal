@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 import { ORDER_STATUS_COLORS } from '@/lib/constants';
 import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink, Package, User, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -79,9 +80,7 @@ export default function BuyerOrders() {
     // In a real app, this would redirect to Razorpay or other payment gateway
   };
 
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN')}`;
-  };
+  // Using shared formatCurrency utility from @/lib/utils
 
   const handleViewOrder = (order: Order) => {
     setSelectedOrder(order);
@@ -134,7 +133,7 @@ export default function BuyerOrders() {
                         {order.rfqId}
                       </td>
                       <td className="py-4 px-6 text-sm font-medium" data-testid={`text-order-amount-${order.id}`}>
-                        ₹{order.totalAmount?.toLocaleString() || 'N/A'}
+                        {order.totalAmount ? formatCurrency(order.totalAmount) : 'N/A'}
                       </td>
                       <td className="py-4 px-6">
                         <Badge className={ORDER_STATUS_COLORS[(order.status as keyof typeof ORDER_STATUS_COLORS) || 'created'] || ORDER_STATUS_COLORS.created}>
@@ -199,7 +198,7 @@ export default function BuyerOrders() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Total Amount:</span>
-                      <span className="text-sm font-semibold">₹{selectedOrder.totalAmount?.toLocaleString() || 'N/A'}</span>
+                      <span className="text-sm font-semibold">{selectedOrder.totalAmount ? formatCurrency(selectedOrder.totalAmount) : 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Status:</span>

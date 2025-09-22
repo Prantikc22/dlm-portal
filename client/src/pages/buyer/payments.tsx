@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface PaymentTransaction {
@@ -113,9 +114,7 @@ export default function BuyerPaymentDashboard() {
     }
   };
 
-  const formatCurrency = (amount: string) => {
-    return `₹${parseFloat(amount).toLocaleString('en-IN')}`;
-  };
+  // Using shared formatCurrency utility from @/lib/utils
 
   return (
     <div className="p-8 space-y-8">

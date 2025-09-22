@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 
 const ORDER_STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -213,11 +214,11 @@ export default function AdminOrderManagement() {
                       <td className="py-4 px-6">
                         <div>
                           <p className="font-bold text-green-600">
-                            ${order.totalAmount?.toLocaleString() || 'N/A'}
+                            {order.totalAmount ? formatCurrency(order.totalAmount) : 'N/A'}
                           </p>
                           {order.advancePayment && (
                             <p className="text-sm text-muted-foreground">
-                              Advance: ${order.advancePayment.toLocaleString()}
+                              Advance: {formatCurrency(order.advancePayment)}
                             </p>
                           )}
                         </div>

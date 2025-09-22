@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 const offerSchema = z.object({
@@ -334,7 +335,7 @@ export default function AdminOfferComposer() {
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <p className="text-muted-foreground">Unit Price</p>
-                              <p className="font-medium text-lg">₹{quote.quoteJson?.unitPrice?.toLocaleString()}</p>
+                              <p className="font-medium text-lg">{quote.quoteJson?.unitPrice ? formatCurrency(quote.quoteJson.unitPrice) : 'N/A'}</p>
                             </div>
                             <div>
                               <p className="text-muted-foreground">Lead Time</p>
@@ -342,7 +343,7 @@ export default function AdminOfferComposer() {
                             </div>
                             <div>
                               <p className="text-muted-foreground">Total Amount</p>
-                              <p className="font-medium">₹{quote.quoteJson?.totalAmount?.toLocaleString()}</p>
+                              <p className="font-medium">{quote.quoteJson?.totalAmount ? formatCurrency(quote.quoteJson.totalAmount) : 'N/A'}</p>
                             </div>
                           </div>
 
