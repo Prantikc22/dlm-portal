@@ -1,15 +1,19 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authenticatedApiClient } from '@/lib/supabase';
 import { ORDER_STATUS_COLORS } from '@/lib/constants';
-import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink, Package, User, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Order, PaymentTransaction } from '@shared/schema';
 
 export default function BuyerOrders() {
   const { toast } = useToast();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['/api/protected/orders'],
@@ -79,6 +83,11 @@ export default function BuyerOrders() {
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
+  const handleViewOrder = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderDetails(true);
+  };
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -140,7 +149,12 @@ export default function BuyerOrders() {
                       </td>
                       <td className="py-4 px-6 space-x-2">
                         {getPaymentActions(order)}
-                        <Button variant="ghost" size="sm" data-testid={`button-view-order-${order.id}`}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleViewOrder(order)}
+                          data-testid={`button-view-order-${order.id}`}
+                        >
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
@@ -157,6 +171,103 @@ export default function BuyerOrders() {
           )}
         </CardContent>
       </Card>
+
+      {/* Order Details Modal */}
+      <Dialog open={showOrderDetails} onOpenChange={setShowOrderDetails}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Order Details - {selectedOrder?.orderNumber}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedOrder && (
+            <div className="space-y-6">
+              {/* Order Overview */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Order Information</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Order Number:</span>
+                      <span className="text-sm font-mono">{selectedOrder.orderNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">RFQ ID:</span>
+                      <span className="text-sm font-mono">{selectedOrder.rfqId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Total Amount:</span>
+                      <span className="text-sm font-semibold">₹{selectedOrder.totalAmount?.toLocaleString() || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Status:</span>
+                      <Badge className={ORDER_STATUS_COLORS[(selectedOrder.status as keyof typeof ORDER_STATUS_COLORS) || 'created']}>
+                        {(selectedOrder.status || 'created').replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Timeline</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Created:</span>
+                      <span className="text-sm">{selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleDateString() : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Updated:</span>
+                      <span className="text-sm">{selectedOrder.updatedAt ? new Date(selectedOrder.updatedAt).toLocaleDateString() : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Deposit Paid:</span>
+                      <span className="text-sm">
+                        {selectedOrder.depositPaid ? (
+                          <Badge className="bg-green-100 text-green-800">Yes</Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800">No</Badge>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Status */}
+              <div className="border-t pt-6">
+                <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Payment Status</h4>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Current Payment Status:</span>
+                  {getPaymentStatusBadge(getPaymentStatus(selectedOrder.id))}
+                </div>
+                {selectedOrder.escrowTxRef && (
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm text-muted-foreground">Transaction Reference:</span>
+                    <span className="text-sm font-mono">{selectedOrder.escrowTxRef}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="border-t pt-6 flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowOrderDetails(false)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Download Invoice
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
