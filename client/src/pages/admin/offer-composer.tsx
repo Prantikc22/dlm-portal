@@ -867,6 +867,7 @@ export default function AdminOfferComposer() {
                                   <Button
                                     variant="outline"
                                     size="sm"
+                                    onClick={() => window.open(offer.paymentLink, '_blank')}
                                     className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-900/30"
                                     data-testid={`button-payment-link-${offer.id}`}
                                   >
@@ -879,7 +880,18 @@ export default function AdminOfferComposer() {
                           )}
 
                           <div className="flex justify-end space-x-2">
-                            <Button variant="ghost" size="sm" data-testid={`button-view-offer-${offer.id}`}>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => {
+                                // Show offer details in a modal or navigate to detail view
+                                toast({
+                                  title: "Offer Details",
+                                  description: `${offer.title} - ₹${offer.details?.unitPrice} per unit, ${offer.details?.leadTimeDays} days lead time`,
+                                });
+                              }}
+                              data-testid={`button-view-offer-${offer.id}`}
+                            >
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>

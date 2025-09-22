@@ -63,13 +63,60 @@ export default function BuyerOffers() {
     setShowPaymentDialog(true);
   };
 
-  const handlePaymentAction = (offer: OfferData, paymentType: 'advance' | 'final') => {
-    // In a real app, this would initiate payment through Razorpay or other gateway
-    toast({
-      title: "Payment Initiated",
-      description: `${paymentType === 'advance' ? 'Advance' : 'Final'} payment process started for ${offer.type} offer`,
-    });
-    setShowPaymentDialog(false);
+  const handlePaymentAction = async (offer: OfferData, paymentType: 'advance' | 'final') => {
+    try {
+      // In production, this would integrate with Stripe/Razorpay
+      const paymentUrl = `https://payments.example.com/pay?offer=${offer.id}&type=${paymentType}`;
+      
+      // For demo purposes, simulate payment process
+      toast({
+        title: "Redirecting to Payment",
+        description: `Opening payment gateway for ${paymentType} payment of ${offer.type} offer`,
+      });
+      
+      // Simulate payment completion after 3 seconds (for demo)
+      setTimeout(async () => {
+        try {
+          const transactionData = {
+            curatedOfferId: offer.id,
+            status: 'completed',
+            transactionRef: `PAY-${Date.now()}`,
+            amount: paymentType === 'advance' 
+              ? calculatePaymentBreakdown(offer.price * 50).advanceAmount
+              : calculatePaymentBreakdown(offer.price * 50).finalAmount,
+            paymentMethod: 'online'
+          };
+          
+          // Record payment transaction
+          await authenticatedApiClient.post('/api/protected/payment-transactions', transactionData);
+          
+          toast({
+            title: "Payment Successful!",
+            description: "Your payment has been processed. Order will be created automatically.",
+          });
+          
+          setShowPaymentDialog(false);
+          
+          // Refresh offers to show updated status
+          // queryClient.invalidateQueries(['/api/protected/buyer/offers']);
+          
+        } catch (error) {
+          console.error('Payment recording error:', error);
+          toast({
+            title: "Payment Processed",
+            description: "Payment completed but status update failed. Contact support if needed.",
+            variant: "destructive",
+          });
+        }
+      }, 3000);
+      
+    } catch (error) {
+      toast({
+        title: "Payment Failed",
+        description: "Unable to process payment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

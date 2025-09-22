@@ -1088,6 +1088,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Payment status webhook (for payment gateways)
+  app.post("/api/webhooks/payment-status", async (req, res) => {
+    try {
+      const { transactionRef, status, curatedOfferId, amount } = req.body;
+      
+      // Verify webhook signature (in production, verify with payment gateway)
+      // const isValid = verifyWebhookSignature(req.headers, req.body);
+      // if (!isValid) return res.status(400).json({ error: "Invalid signature" });
+      
+      if (status === 'completed' && curatedOfferId) {
+        // Create payment transaction record
+        const transactionData = {
+          transactionRef,
+          curatedOfferId,
+          status: 'completed',
+          amount: parseFloat(amount),
+          paymentMethod: 'online',
+          payerId: req.body.payerId // Should come from webhook
+        };
+        
+        const transaction = await storage.createPaymentTransaction(transactionData);
+        
+        // Auto-create order when payment is successful
+        const offer = await storage.getCuratedOffer(curatedOfferId);
+        if (offer) {
+          const rfq = await storage.getRFQ(offer.rfqId);
+          if (rfq) {
+            const quotes = await storage.getQuotesByRFQ(offer.rfqId);
+            const selectedQuote = quotes.find(q => 
+              Math.abs(q.quoteJson?.unitPrice - offer.details?.unitPrice) < 0.01
+            ) || quotes[0];
+            
+            const orderData = {
+              rfqId: offer.rfqId,
+              curatedOfferId: offer.id,
+              buyerId: rfq.buyerId,
+              adminId: offer.adminId,
+              supplierId: selectedQuote?.supplierId,
+              status: 'confirmed',
+              totalAmount: amount,
+              depositPaid: true,
+              escrowTxRef: transactionRef
+            };
+            
+            await storage.createOrder(orderData);
+            console.log(`✅ Order auto-created for payment ${transactionRef}`);
+          }
+        }
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Payment webhook error:', error);
+      res.status(500).json({ error: "Failed to process payment webhook" });
+    }
+  });
+
+  // Manual payment status update (for testing or manual verification)
+  app.post("/api/protected/payment-status", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { curatedOfferId, status, transactionRef } = req.body;
+      
+      // Only admin can manually update payment status
+      if (req.user!.role !== 'admin') {
+        return res.status(403).json({ error: "Only admins can update payment status" });
+      }
+      
+      // Create/update payment transaction
+      const transactionData = {
+        transactionRef: transactionRef || `MANUAL-${Date.now()}`,
+        curatedOfferId,
+        status,
+        payerId: req.user!.id,
+        paymentMethod: 'manual',
+        amount: 0 // Amount should be provided in real scenario
+      };
+      
+      const transaction = await storage.createPaymentTransaction(transactionData);
+      
+      res.json({ 
+        success: true, 
+        message: `Payment status updated to ${status}`,
+        transaction 
+      });
+    } catch (error) {
+      console.error('Manual payment status error:', error);
+      res.status(500).json({ error: "Failed to update payment status" });
+    }
+  });
+
   // Payment Transaction Management
   app.post("/api/protected/payment-transactions", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {
