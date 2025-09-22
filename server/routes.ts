@@ -966,6 +966,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fix order total amounts (recalculate from offer details)
+  app.post("/api/protected/admin/orders/:orderId/recalculate", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      // Get the order and its associated offer (by ID or order number)
+      const allOrders = await storage.getAllOrders();
+      const order = allOrders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      if (!order.curatedOfferId) {
+        return res.status(400).json({ error: "Order has no associated curated offer" });
+      }
+
+      const offer = await storage.getCuratedOffer(order.curatedOfferId);
+      if (!offer) {
+        return res.status(404).json({ error: "Associated offer not found" });
+      }
+
+      const rfq = await storage.getRFQ(offer.rfqId);
+      if (!rfq) {
+        return res.status(404).json({ error: "Associated RFQ not found" });
+      }
+
+      // Calculate correct total amount from offer details
+      let correctTotalAmount = '0';
+      const parsedOfferDetails = offerDetailsSchema.safeParse(offer.details);
+      const parsedRfqDetails = rfqDetailsSchema.safeParse(rfq.details);
+      
+      if (parsedOfferDetails.success && parsedRfqDetails.success) {
+        const offerDetails = parsedOfferDetails.data;
+        const rfqDetails = parsedRfqDetails.data;
+        
+        // Calculate base total: unitPrice * total quantity across all items
+        const itemsTotal = rfqDetails.items.reduce((sum: number, item) => {
+          return sum + (offerDetails.unitPrice * (item.quantity || 1));
+        }, 0);
+        
+        // Add tooling cost if specified
+        const toolingCost = offerDetails.toolingCost || 0;
+        correctTotalAmount = (itemsTotal + toolingCost).toString();
+        
+        console.log(`Recalculating order ${orderId}: unitPrice=${offerDetails.unitPrice}, items=${rfqDetails.items.length}, itemsTotal=${itemsTotal}, toolingCost=${toolingCost}, correctTotal=${correctTotalAmount}, previousTotal=${order.totalAmount}`);
+      } else if (offer.totalPrice) {
+        correctTotalAmount = offer.totalPrice.toString();
+      }
+
+      // Update the order total amount directly in database
+      await storage.updateOrderTotalAmount(orderId, correctTotalAmount);
+      
+      res.json({ 
+        success: true, 
+        message: `Order total recalculated successfully`,
+        previousAmount: order.totalAmount,
+        newAmount: correctTotalAmount,
+        orderId: orderId
+      });
+    } catch (error) {
+      console.error('Recalculate order total error:', error);
+      res.status(500).json({ error: "Failed to recalculate order total" });
+    }
+  });
+
   // Notification routes
   app.get("/api/protected/notifications", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
     try {

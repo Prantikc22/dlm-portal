@@ -448,6 +448,14 @@ class InMemoryStorage implements IStorage {
     }
   }
 
+  async updateOrderTotalAmount(id: string, totalAmount: string): Promise<void> {
+    const order = this.orders.find(o => o.id === id);
+    if (order) {
+      order.totalAmount = totalAmount;
+      order.updatedAt = new Date();
+    }
+  }
+
   // Admin-specific methods
   async getAllRFQs(): Promise<RFQ[]> {
     return this.rfqs;
@@ -829,6 +837,7 @@ export interface IStorage {
   getOrdersBySupplier(supplierId: string): Promise<Order[]>;
   getAllOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<void>;
+  updateOrderTotalAmount(id: string, totalAmount: string): Promise<void>;
 
   // Supplier payouts
   getPayoutsBySupplier(supplierId: string): Promise<any[]>;
@@ -1056,6 +1065,10 @@ export class SupabaseStorage implements IStorage {
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
     await db.update(orders).set({ status: status as any, updatedAt: new Date() }).where(eq(orders.id, id));
+  }
+
+  async updateOrderTotalAmount(id: string, totalAmount: string): Promise<void> {
+    await db.update(orders).set({ totalAmount, updatedAt: new Date() }).where(eq(orders.id, id));
   }
 
   // Admin-specific methods
@@ -1439,6 +1452,10 @@ class FallbackStorage implements IStorage {
 
   async updateOrderStatus(id: string, status: string): Promise<void> {
     return this.withFallback(async (storage) => storage.updateOrderStatus(id, status));
+  }
+
+  async updateOrderTotalAmount(id: string, totalAmount: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.updateOrderTotalAmount(id, totalAmount));
   }
 
   async createDocument(document: InsertDocument): Promise<Document> {

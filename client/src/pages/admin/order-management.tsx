@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Package, Eye, Truck, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Package, Eye, Truck, Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authenticatedApiClient } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const ORDER_STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -22,11 +23,39 @@ const ORDER_STATUS_COLORS = {
 export default function AdminOrderManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['/api/protected/admin/orders'],
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/orders'),
   });
+
+  // Mutation to recalculate order total
+  const recalculateOrderMutation = useMutation({
+    mutationFn: async (orderIdOrNumber: string) => {
+      return authenticatedApiClient.post(`/api/protected/admin/orders/${orderIdOrNumber}/recalculate`, {});
+    },
+    onSuccess: (data, orderIdOrNumber) => {
+      toast({
+        title: "Order Recalculated",
+        description: `Order total updated from ${data.previousAmount} to ${data.newAmount}`,
+      });
+      // Refresh orders list
+      queryClient.invalidateQueries({ queryKey: ['/api/protected/admin/orders'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Recalculation Failed",
+        description: error.message || "Failed to recalculate order total",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRecalculateOrder = (order: any) => {
+    recalculateOrderMutation.mutate(order.orderNumber || order.id);
+  };
 
   const filteredOrders = orders.filter((order: any) => {
     const matchesSearch = order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -232,14 +261,27 @@ export default function AdminOrderManagement() {
                         {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
                       </td>
                       <td className="py-4 px-6">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          data-testid={`button-view-order-${order.id}`}
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid={`button-view-order-${order.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRecalculateOrder(order)}
+                            disabled={recalculateOrderMutation.isPending}
+                            data-testid={`button-recalculate-order-${order.id}`}
+                            title="Recalculate order total from offer details"
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-1 ${recalculateOrderMutation.isPending ? 'animate-spin' : ''}`} />
+                            {recalculateOrderMutation.isPending ? 'Fixing...' : 'Fix Total'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
