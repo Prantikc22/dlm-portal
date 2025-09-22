@@ -1595,6 +1595,10 @@ class FallbackStorage implements IStorage {
   }): Promise<void> {
     return this.withFallback(async (storage) => storage.updateCuratedOfferPayment(id, paymentData));
   }
+
+  async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
+    return this.withFallback(async (storage) => storage.getPayoutsBySupplier(supplierId));
+  }
 }
 
 // Comprehensive SKU data initialization

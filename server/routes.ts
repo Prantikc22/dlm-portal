@@ -1169,7 +1169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               buyerId: rfq.buyerId,
               adminId: offer.adminId,
               supplierId: selectedQuote?.supplierId,
-              status: 'confirmed',
+              status: 'deposit_paid',
               totalAmount: amount,
               depositPaid: true,
               escrowTxRef: transactionRef
@@ -1286,7 +1286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   buyerId: req.user!.id,
                   adminId: offer.adminId,
                   supplierId: supplierId,
-                  status: 'confirmed',
+                  status: 'deposit_paid',
                   totalAmount: totalAmount,
                   depositPaid: true,
                   escrowTxRef: transaction.transactionRef
