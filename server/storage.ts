@@ -431,6 +431,15 @@ class InMemoryStorage implements IStorage {
     return this.orders.filter(o => o.supplierId === supplierId);
   }
 
+  async getAllOrders(): Promise<Order[]> {
+    return this.orders;
+  }
+
+  async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
+    // Return mock payouts for now - in real implementation this would fetch from payouts table
+    return [];
+  }
+
   async updateOrderStatus(id: string, status: string): Promise<void> {
     const order = this.orders.find(o => o.id === id);
     if (order) {
@@ -915,7 +924,11 @@ export interface IStorage {
   createOrder(orderData: any): Promise<Order>;
   getOrdersByBuyer(buyerId: string): Promise<Order[]>;
   getOrdersBySupplier(supplierId: string): Promise<Order[]>;
+  getAllOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<void>;
+
+  // Supplier payouts
+  getPayoutsBySupplier(supplierId: string): Promise<any[]>;
 
   // Admin-specific methods
   getAllRFQs(): Promise<RFQ[]>;

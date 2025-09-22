@@ -874,12 +874,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orders = await storage.getOrdersByBuyer(req.user!.id);
       } else if (req.user!.role === "supplier") {
         orders = await storage.getOrdersBySupplier(req.user!.id);
+      } else if (req.user!.role === "admin") {
+        orders = await storage.getAllOrders();
       } else {
-        orders = []; // Admin would need different method
+        orders = []; // Default fallback
       }
       res.json(orders);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Supplier payouts routes  
+  app.get("/api/protected/suppliers/payouts", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const payouts = await storage.getPayoutsBySupplier(req.user!.id);
+      res.json(payouts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch payouts" });
     }
   });
 
@@ -1071,7 +1083,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         payerId: req.user!.id // Ensure payer is authenticated user
       });
+      
       const transaction = await storage.createPaymentTransaction(transactionData);
+      
+      // If payment is successful and linked to a curated offer, create order
+      if (transaction.status === 'completed' && transaction.curatedOfferId) {
+        try {
+          // Check for existing order to prevent duplicates using order records
+          const existingOrders = await storage.getAllOrders();
+          const hasExistingOrder = existingOrders.some(order => 
+            order.curatedOfferId === transaction.curatedOfferId || 
+            order.escrowTxRef === transaction.transactionRef
+          );
+          
+          if (!hasExistingOrder) {
+            const offer = await storage.getCuratedOffer(transaction.curatedOfferId);
+            if (offer) {
+              const rfq = await storage.getRFQ(offer.rfqId);
+              if (rfq) {
+                // Get the specific quote that was selected for this offer
+                const quotes = await storage.getQuotesByRFQ(offer.rfqId);
+                let selectedQuote = null;
+                let supplierId = null;
+                
+                // Try to find the selected quote from supplier indicators
+                if (offer.supplierIndicators && quotes.length > 0) {
+                  // Find the quote that matches the offer details
+                  selectedQuote = quotes.find(q => 
+                    Math.abs(q.quoteJson?.unitPrice - offer.details?.unitPrice) < 0.01
+                  ) || quotes[0];
+                  supplierId = selectedQuote.supplierId;
+                } else {
+                  // Fallback to first quote
+                  selectedQuote = quotes[0];
+                  supplierId = selectedQuote?.supplierId || null;
+                }
+                
+                // Calculate total amount from offer details and RFQ items
+                let totalAmount = '0';
+                if (offer.details?.unitPrice && rfq.details?.items) {
+                  const itemsTotal = rfq.details.items.reduce((sum: number, item: any) => {
+                    return sum + (offer.details.unitPrice * (item.quantity || 1));
+                  }, 0);
+                  // Add tooling cost if present in offer details
+                  const toolingCost = offer.details?.toolingCost || selectedQuote?.quoteJson?.toolingCost || 0;
+                  totalAmount = (itemsTotal + toolingCost).toString();
+                } else if (offer.totalPrice) {
+                  // Use the offer's total price if available
+                  totalAmount = offer.totalPrice.toString();
+                }
+                
+                const orderData = {
+                  rfqId: offer.rfqId,
+                  curatedOfferId: offer.id,
+                  buyerId: req.user!.id,
+                  adminId: offer.adminId,
+                  supplierId: supplierId,
+                  status: 'confirmed',
+                  totalAmount: totalAmount,
+                  depositPaid: true,
+                  escrowTxRef: transaction.transactionRef
+                };
+                
+                await storage.createOrder(orderData);
+                console.log(`Order created for payment transaction ${transaction.id} with supplier ${supplierId} and total ${totalAmount}`);
+              }
+            }
+          } else {
+            console.log(`Order already exists for curated offer ${transaction.curatedOfferId} or transaction ${transaction.transactionRef}`);
+          }
+        } catch (orderError) {
+          console.error('Failed to create order for payment transaction:', orderError);
+          // Don't fail the payment transaction if order creation fails
+        }
+      }
+      
       res.json(transaction);
     } catch (error) {
       if (error instanceof ZodError) {

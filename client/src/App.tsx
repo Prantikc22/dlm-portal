@@ -59,8 +59,8 @@ function DashboardLayout() {
     { icon: 'fas fa-home', label: 'Dashboard', href: '/supplier/dashboard', active: true },
     { icon: 'fas fa-file-invoice', label: 'Invited RFQs', href: '/supplier/rfqs' },
     { icon: 'fas fa-quote-right', label: 'My Quotes', href: '/supplier/quotes' },
-    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '#' },
-    { icon: 'fas fa-money-bill-wave', label: 'Payouts', href: '#' },
+    { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/supplier/orders' },
+    { icon: 'fas fa-money-bill-wave', label: 'Payouts', href: '/supplier/payouts' },
     { icon: 'fas fa-user-cog', label: 'Profile', href: '/supplier/onboarding' },
   ];
 
