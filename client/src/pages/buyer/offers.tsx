@@ -100,11 +100,17 @@ export default function BuyerOffers() {
 
   const handleMarkAsPaid = async (offer: OfferData, transactionRef: string) => {
     try {
+      // Calculate 30% advance payment
+      const advanceAmount = Math.round(offer.price * 0.30);
+      
       const transactionData = {
         curatedOfferId: offer.id,
         status: 'completed',
         transactionRef: transactionRef || `EXTERNAL-${Date.now()}`,
-        amount: offer.price,
+        amount: advanceAmount.toString(), // Convert to string as expected by schema
+        netAmount: advanceAmount.toString(), // Net amount is same as amount for advance payment
+        transactionType: 'advance_payment' as const, // Required field
+        payerId: '', // Will be filled by backend with current user ID
         paymentMethod: 'external'
       };
       
