@@ -392,7 +392,6 @@ export const insertPaymentConfigurationSchema = createInsertSchema(paymentConfig
 
 export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions).omit({
   id: true,
-  transactionRef: true,
   createdAt: true,
   updatedAt: true,
 });

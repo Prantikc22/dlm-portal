@@ -289,7 +289,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Get all published curated offers for this buyer
       const offers = await storage.getCuratedOffersByBuyer(req.user!.id);
-      res.json(offers);
+      
+      // Calculate totalPrice for each offer based on RFQ quantity
+      const enrichedOffers = await Promise.all(offers.map(async (offer: any) => {
+        try {
+          // Get the RFQ to find quantity
+          const rfq = await storage.getRFQ(offer.rfqId);
+          const quantity = rfq?.details?.quantity || rfq?.details?.items?.[0]?.quantity || 1;
+          const unitPrice = offer.details?.unitPrice || 0;
+          const totalPrice = unitPrice * quantity;
+          
+          return {
+            ...offer,
+            totalPrice,
+            quantity,
+            unitPrice
+          };
+        } catch (error) {
+          console.error('Error enriching offer:', error);
+          // Fallback calculation
+          const unitPrice = offer.details?.unitPrice || 0;
+          return {
+            ...offer,
+            totalPrice: unitPrice * 100, // Default quantity fallback
+            quantity: 100,
+            unitPrice
+          };
+        }
+      }));
+      
+      res.json(enrichedOffers);
     } catch (error) {
       console.error('Get buyer offers error:', error);
       res.status(500).json({ error: "Failed to fetch offers" });

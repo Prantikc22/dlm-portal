@@ -26,6 +26,7 @@ interface OfferData {
 export default function BuyerOffers() {
   const [selectedOffer, setSelectedOffer] = useState<OfferData | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentRef, setPaymentRef] = useState('');
   const { toast } = useToast();
 
   // Fetch actual offers from API
@@ -65,55 +66,56 @@ export default function BuyerOffers() {
 
   const handlePaymentAction = async (offer: OfferData, paymentType: 'advance' | 'final') => {
     try {
-      // In production, this would integrate with Stripe/Razorpay
-      const paymentUrl = `https://payments.example.com/pay?offer=${offer.id}&type=${paymentType}`;
+      // Get the payment link from the offer
+      const paymentLink = (offer as any).paymentLink;
       
-      // For demo purposes, simulate payment process
-      toast({
-        title: "Redirecting to Payment",
-        description: `Opening payment gateway for ${paymentType} payment of ${offer.type} offer`,
-      });
-      
-      // Simulate payment completion after 3 seconds (for demo)
-      setTimeout(async () => {
-        try {
-          const transactionData = {
-            curatedOfferId: offer.id,
-            status: 'completed',
-            transactionRef: `PAY-${Date.now()}`,
-            amount: paymentType === 'advance' 
-              ? calculatePaymentBreakdown(offer.price * 50).advanceAmount
-              : calculatePaymentBreakdown(offer.price * 50).finalAmount,
-            paymentMethod: 'online'
-          };
-          
-          // Record payment transaction
-          await authenticatedApiClient.post('/api/protected/payment-transactions', transactionData);
-          
-          toast({
-            title: "Payment Successful!",
-            description: "Your payment has been processed. Order will be created automatically.",
-          });
-          
-          setShowPaymentDialog(false);
-          
-          // Refresh offers to show updated status
-          // queryClient.invalidateQueries(['/api/protected/buyer/offers']);
-          
-        } catch (error) {
-          console.error('Payment recording error:', error);
-          toast({
-            title: "Payment Processed",
-            description: "Payment completed but status update failed. Contact support if needed.",
-            variant: "destructive",
-          });
-        }
-      }, 3000);
-      
+      if (paymentLink) {
+        // Open payment link in new tab
+        window.open(paymentLink, '_blank');
+        toast({
+          title: "Payment Link Opened",
+          description: "Complete payment and then mark as paid below.",
+        });
+      } else {
+        toast({
+          title: "No Payment Link",
+          description: "Contact admin for payment instructions.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Payment Failed",
-        description: "Unable to process payment. Please try again.",
+        description: "Unable to open payment link. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkAsPaid = async (offer: OfferData, transactionRef: string) => {
+    try {
+      const transactionData = {
+        curatedOfferId: offer.id,
+        status: 'completed',
+        transactionRef: transactionRef || `EXTERNAL-${Date.now()}`,
+        amount: offer.price,
+        paymentMethod: 'external'
+      };
+      
+      await authenticatedApiClient.post('/api/protected/payment-transactions', transactionData);
+      
+      toast({
+        title: "Payment Recorded!",
+        description: "Your payment has been marked as completed. Order will be created automatically.",
+      });
+      
+      setShowPaymentDialog(false);
+      
+    } catch (error) {
+      console.error('Payment recording error:', error);
+      toast({
+        title: "Failed to Record Payment",
+        description: "Unable to record payment status. Please contact support.",
         variant: "destructive",
       });
     }
