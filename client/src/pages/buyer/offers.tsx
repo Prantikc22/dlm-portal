@@ -268,7 +268,7 @@ export default function BuyerOffers() {
                 <p className="text-sm text-muted-foreground mb-2">
                   RFQ: {selectedOffer.rfqTitle}
                 </p>
-                <div className="text-2xl font-bold">{formatCurrency(selectedOffer.price * 50)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(selectedOffer.price)}</div>
                 <p className="text-sm text-muted-foreground">Total Order Value</p>
               </div>
 
@@ -279,7 +279,7 @@ export default function BuyerOffers() {
                     <p className="text-sm text-muted-foreground">Required to start production</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price * 50).advanceAmount)}</p>
+                    <p className="font-bold">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price).advanceAmount)}</p>
                     <Button 
                       size="sm" 
                       onClick={() => handlePaymentAction(selectedOffer, 'advance')}
@@ -297,7 +297,7 @@ export default function BuyerOffers() {
                     <p className="text-sm text-muted-foreground">Due on delivery</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-muted-foreground">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price * 50).finalAmount)}</p>
+                    <p className="font-bold text-muted-foreground">{formatCurrency(calculatePaymentBreakdown(selectedOffer.price).finalAmount)}</p>
                     <p className="text-xs text-muted-foreground">Pay later</p>
                   </div>
                 </div>
