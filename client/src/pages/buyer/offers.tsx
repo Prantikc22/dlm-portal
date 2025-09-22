@@ -34,59 +34,19 @@ export default function BuyerOffers() {
     queryFn: () => authenticatedApiClient.get('/api/protected/buyer/offers'),
   });
 
-  // Sample offers data with payment information for demo
-  const sampleOffers = [
-    {
-      id: '1',
-      rfqId: 'RFQ-2024-001',
-      rfqTitle: 'CNC Machined Brackets',
-      type: 'Standard',
-      price: 2450,
-      leadTime: 14,
-      warranty: '6 months',
-      quality: 'Basic dimensional check',
-      features: ['Quality Assured', 'On-time Delivery'],
-      recommended: false,
-    },
-    {
-      id: '2',
-      rfqId: 'RFQ-2024-001',
-      rfqTitle: 'CNC Machined Brackets',
-      type: 'Premium',
-      price: 2850,
-      leadTime: 12,
-      warranty: '12 months',
-      quality: 'Advanced CMM inspection',
-      features: ['Premium Quality', 'Express Processing', 'Extended Warranty'],
-      recommended: true,
-    },
-    {
-      id: '3',
-      rfqId: 'RFQ-2024-001',
-      rfqTitle: 'CNC Machined Brackets',
-      type: 'Fast Track',
-      price: 3200,
-      leadTime: 7,
-      warranty: '6 months',
-      quality: 'Priority inspection',
-      features: ['Express Delivery', 'Rush Processing'],
-      recommended: false,
-    },
-  ];
-
   // Transform API offers to match component interface
-  const displayOffers = offers.length > 0 ? offers.map((offer: any) => ({
+  const displayOffers = offers.map((offer: any) => ({
     id: offer.id,
     rfqId: offer.rfqId,
-    rfqTitle: offer.rfq?.title || 'RFQ',
+    rfqTitle: offer.rfq?.title || offer.rfq?.description || 'RFQ',
     type: offer.title || 'Standard',
     price: parseFloat(offer.totalPrice || offer.details?.unitPrice || '0'),
     leadTime: offer.details?.leadTime || 14,
     warranty: offer.details?.warranty || '6 months',
     quality: offer.details?.qualityAssurance || 'Standard quality check',
     features: offer.details?.features || ['Quality Assured', 'On-time Delivery'],
-    recommended: false, // You can add logic for this based on admin preferences
-  })) : sampleOffers;
+    recommended: false,
+  }));
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`;
@@ -120,115 +80,126 @@ export default function BuyerOffers() {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>RFQ-2024-001: CNC Machined Brackets</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Received 3 curated offers • Expires in 48 hours
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {(displayOffers as OfferData[]).map((offer: OfferData) => (
-                <Card 
-                  key={offer.id} 
-                  className={`relative ${offer.recommended ? 'border-primary shadow-lg' : ''}`}
-                  data-testid={`card-offer-${offer.id}`}
-                >
-                  {offer.recommended && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <Badge className="bg-green-100 text-green-800">
-                        <Award className="h-3 w-3 mr-1" />
-                        Best Value
-                      </Badge>
-                    </div>
-                  )}
-                  
-                  <CardHeader className="text-center">
-                    <CardTitle className="text-lg">{offer.type} Offer</CardTitle>
-                    <div className="text-2xl font-bold">₹{offer.price.toLocaleString()}</div>
-                    <p className="text-sm text-muted-foreground">per piece</p>
-                  </CardHeader>
-                  
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">Lead Time: {offer.leadTime} days</span>
+        {displayOffers.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">No offers available at the moment.</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Offers will appear here once admins publish them for your RFQs.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          displayOffers.map((offer: OfferData) => (
+            <Card key={offer.rfqId}>
+              <CardHeader>
+                <CardTitle>{offer.rfqTitle}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Received curated offers • Review and accept to proceed
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <Card 
+                    key={offer.id} 
+                    className={`relative ${offer.recommended ? 'border-primary shadow-lg' : ''}`}
+                    data-testid={`card-offer-${offer.id}`}
+                  >
+                    {offer.recommended && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <Badge className="bg-green-100 text-green-800">
+                          <Award className="h-3 w-3 mr-1" />
+                          Best Value
+                        </Badge>
                       </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Shield className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">Warranty: {offer.warranty}</span>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium">Quality Assurance:</p>
-                        <p className="text-sm text-muted-foreground">{offer.quality}</p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium mb-2">Features:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {offer.features.map((feature: string, index: number) => (
-                            <Badge key={index} variant="secondary" className="text-xs">
-                              {feature}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                    )}
                     
-                    {/* Payment Information */}
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <CreditCard className="h-4 w-4 text-blue-600" />
-                        <h4 className="font-medium text-blue-900 dark:text-blue-100">Payment Structure</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <p className="text-blue-700 dark:text-blue-300">Advance (30%)</p>
-                          <p className="font-bold text-blue-900 dark:text-blue-100">
-                            {formatCurrency(calculatePaymentBreakdown(offer.price * 50).advanceAmount)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-blue-700 dark:text-blue-300">Final (70%)</p>
-                          <p className="font-bold text-blue-900 dark:text-blue-100">
-                            {formatCurrency(calculatePaymentBreakdown(offer.price * 50).finalAmount)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-blue-300 dark:border-blue-700">
-                        <div className="flex items-center justify-between">
-                          <span className="text-blue-700 dark:text-blue-300 text-sm">Total Order Value</span>
-                          <span className="font-bold text-blue-900 dark:text-blue-100">
-                            {formatCurrency(offer.price * 50)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <CardHeader className="text-center">
+                      <CardTitle className="text-lg">{offer.type} Offer</CardTitle>
+                      <div className="text-2xl font-bold">₹{offer.price.toLocaleString()}</div>
+                      <p className="text-sm text-muted-foreground">per piece</p>
+                    </CardHeader>
                     
-                    <div className="pt-4 border-t">
-                      <p className="text-xs text-muted-foreground mb-3 text-center">
-                        Fulfilled by Logicwerk Marketplace
-                      </p>
-                      <Button 
-                        className="w-full"
-                        variant={offer.recommended ? "default" : "outline"}
-                        onClick={() => handleAcceptOffer(offer)}
-                        data-testid={`button-accept-offer-${offer.id}`}
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Accept Offer & Pay
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">Lead Time: {offer.leadTime} days</span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Shield className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">Warranty: {offer.warranty}</span>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm font-medium">Quality Assurance:</p>
+                          <p className="text-sm text-muted-foreground">{offer.quality}</p>
+                        </div>
+                        
+                        <div>
+                          <p className="text-sm font-medium mb-2">Features:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {offer.features.map((feature: string, index: number) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {feature}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Payment Information */}
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 mb-4">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <CreditCard className="h-4 w-4 text-blue-600" />
+                          <h4 className="font-medium text-blue-900 dark:text-blue-100">Payment Structure</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <p className="text-blue-700 dark:text-blue-300">Advance (30%)</p>
+                            <p className="font-bold text-blue-900 dark:text-blue-100">
+                              {formatCurrency(calculatePaymentBreakdown(offer.price * 50).advanceAmount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-blue-700 dark:text-blue-300">Final (70%)</p>
+                            <p className="font-bold text-blue-900 dark:text-blue-100">
+                              {formatCurrency(calculatePaymentBreakdown(offer.price * 50).finalAmount)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-blue-300 dark:border-blue-700">
+                          <div className="flex items-center justify-between">
+                            <span className="text-blue-700 dark:text-blue-300 text-sm">Total Order Value</span>
+                            <span className="font-bold text-blue-900 dark:text-blue-100">
+                              {formatCurrency(offer.price * 50)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="pt-4 border-t">
+                        <p className="text-xs text-muted-foreground mb-3 text-center">
+                          Fulfilled by Logicwerk Marketplace
+                        </p>
+                        <Button 
+                          className="w-full"
+                          variant={offer.recommended ? "default" : "outline"}
+                          onClick={() => handleAcceptOffer(offer)}
+                          data-testid={`button-accept-offer-${offer.id}`}
+                        >
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Accept Offer & Pay
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
       {/* Payment Dialog */}
