@@ -74,7 +74,19 @@ export default function BuyerOffers() {
     },
   ];
 
-  const displayOffers = offers;
+  // Transform API offers to match component interface
+  const displayOffers = offers.length > 0 ? offers.map((offer: any) => ({
+    id: offer.id,
+    rfqId: offer.rfqId,
+    rfqTitle: offer.rfq?.title || 'RFQ',
+    type: offer.title || 'Standard',
+    price: parseFloat(offer.totalPrice || offer.details?.unitPrice || '0'),
+    leadTime: offer.details?.leadTime || 14,
+    warranty: offer.details?.warranty || '6 months',
+    quality: offer.details?.qualityAssurance || 'Standard quality check',
+    features: offer.details?.features || ['Quality Assured', 'On-time Delivery'],
+    recommended: false, // You can add logic for this based on admin preferences
+  })) : sampleOffers;
 
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString('en-IN')}`;
