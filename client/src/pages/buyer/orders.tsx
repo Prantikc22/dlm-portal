@@ -7,9 +7,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { authenticatedApiClient } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { ORDER_STATUS_COLORS } from '@/lib/constants';
-import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink, Package, User, Calendar } from 'lucide-react';
+import { ShoppingCart, Download, Eye, CreditCard, Clock, CheckCircle, AlertCircle, ExternalLink, Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Order, PaymentTransaction } from '@shared/schema';
+import { useLocation } from 'wouter';
 
 export default function BuyerOrders() {
   const { toast } = useToast();
@@ -72,19 +73,33 @@ export default function BuyerOrders() {
     return null;
   };
 
-  const handlePaymentAction = (order: Order, transaction: PaymentTransaction | undefined) => {
-    toast({
-      title: "Payment Initiated",
-      description: `Redirecting to payment gateway for order ${order.orderNumber}`,
-    });
-    // In a real app, this would redirect to Razorpay or other payment gateway
+  const handlePaymentAction = async (order: Order, _transaction: PaymentTransaction | undefined) => {
+    try {
+      // Use curated offer's configured paymentLink set by admin
+      if (order.curatedOfferId) {
+        const offer = await authenticatedApiClient.get(`/api/protected/curated-offers/${order.curatedOfferId}`);
+        if (offer?.paymentLink) {
+          window.open(offer.paymentLink, '_blank');
+          toast({ title: 'Payment Link Opened', description: 'Complete payment in the gateway.' });
+          return;
+        }
+      }
+      toast({ title: 'Payment Link Missing', description: 'Contact support or admin to configure payment gateway.', variant: 'destructive' });
+    } catch (e:any) {
+      toast({ title: 'Payment Error', description: e?.message || 'Unable to initiate payment', variant: 'destructive' });
+    }
   };
 
   // Using shared formatCurrency utility from @/lib/utils
 
+  const [, navigate] = useLocation();
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
-    setShowOrderDetails(true);
+    navigate(`/buyer/order/${order.id}`);
+  };
+
+  const paidAmountFor = (orderId: string) => {
+    const completed = (paymentTransactions as PaymentTransaction[]).filter(tx => tx.orderId === orderId && tx.status === 'completed');
+    return completed.reduce((sum, tx) => sum + parseFloat(String(tx.netAmount || tx.amount || 0)), 0);
   };
 
   return (
@@ -116,7 +131,9 @@ export default function BuyerOrders() {
                   <tr>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order Number</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">RFQ</th>
-                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Amount</th>
+                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Total</th>
+                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Paid</th>
+                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Remaining</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order Status</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Payment Status</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Created</th>
@@ -134,6 +151,12 @@ export default function BuyerOrders() {
                       </td>
                       <td className="py-4 px-6 text-sm font-medium" data-testid={`text-order-amount-${order.id}`}>
                         {order.totalAmount ? formatCurrency(order.totalAmount) : 'N/A'}
+                      </td>
+                      <td className="py-4 px-6 text-sm">
+                        {formatCurrency(paidAmountFor(order.id).toString())}
+                      </td>
+                      <td className="py-4 px-6 text-sm">
+                        {order.totalAmount ? formatCurrency((parseFloat(String(order.totalAmount)) - paidAmountFor(order.id)).toString()) : 'N/A'}
                       </td>
                       <td className="py-4 px-6">
                         <Badge className={ORDER_STATUS_COLORS[(order.status as keyof typeof ORDER_STATUS_COLORS) || 'created'] || ORDER_STATUS_COLORS.created}>
@@ -157,7 +180,23 @@ export default function BuyerOrders() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        <Button variant="ghost" size="sm" data-testid={`button-download-invoice-${order.id}`}>
+                        <Button variant="ghost" size="sm" data-testid={`button-download-invoice-${order.id}`}
+                          onClick={async ()=>{
+                            try{
+                              const doc= await authenticatedApiClient.get(`/api/protected/orders/${order.id}/invoice`);
+                              if(doc?.metadata?.fileData){
+                                const a=document.createElement('a');
+                                a.href=doc.metadata.fileData;
+                                a.download=doc.metadata.fileName||`invoice-${order.orderNumber}.pdf`;
+                                a.click();
+                              } else {
+                                toast({title:'No Invoice', description:'Invoice not uploaded yet', variant:'destructive'});
+                              }
+                            }catch(e:any){
+                              toast({title:'Invoice Error', description:e?.message||'Unable to download invoice', variant:'destructive'});
+                            }
+                          }}
+                        >
                           <Download className="h-4 w-4 mr-1" />
                           Invoice
                         </Button>

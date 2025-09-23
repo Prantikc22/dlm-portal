@@ -229,6 +229,25 @@ class InMemoryStorage implements IStorage {
     }
   }
 
+  async getAllPaymentTransactions(): Promise<PaymentTransaction[]> {
+    return this.paymentTransactions;
+  }
+
+  async getPaymentTransactionsBySupplier(supplierId: string): Promise<PaymentTransaction[]> {
+    // Transactions directly addressed to supplier (e.g., payouts)
+    const direct = this.paymentTransactions.filter(tx => tx.recipientId === supplierId);
+    // Transactions related to orders owned by supplier (e.g., buyer advance linked to order)
+    const orderOwned = this.paymentTransactions.filter(tx => {
+      if (!tx.orderId) return false;
+      const ord = this.orders.find(o => o.id === tx.orderId);
+      return !!ord && ord.supplierId === supplierId;
+    });
+    // Merge unique by id
+    const map = new Map<string, PaymentTransaction>();
+    [...direct, ...orderOwned].forEach(t => map.set(t.id, t));
+    return Array.from(map.values());
+  }
+
   async getCompany(id: string): Promise<Company | undefined> {
     return this.companies.find(c => c.id === id);
   }
@@ -315,6 +334,10 @@ class InMemoryStorage implements IStorage {
 
   async getDocumentsByType(companyId: string, docType: string): Promise<Document[]> {
     return this.documents.filter(d => d.companyId === companyId && d.docType === docType);
+  }
+
+  async getInvoiceByOrder(orderId: string): Promise<Document | undefined> {
+    return this.documents.find(d => d.docType === 'invoice' && (d.metadata as any)?.orderId === orderId);
   }
 
   async deleteDocument(id: string): Promise<void> {
@@ -452,6 +475,14 @@ class InMemoryStorage implements IStorage {
     const order = this.orders.find(o => o.id === id);
     if (order) {
       order.totalAmount = totalAmount;
+      order.updatedAt = new Date();
+    }
+  }
+
+  async updateOrderDepositPaid(id: string, depositPaid: boolean): Promise<void> {
+    const order = this.orders.find(o => o.id === id);
+    if (order) {
+      order.depositPaid = depositPaid;
       order.updatedAt = new Date();
     }
   }
@@ -639,6 +670,15 @@ class InMemoryStorage implements IStorage {
     return this.paymentTransactions.filter(tx => tx.curatedOfferId === curatedOfferId);
   }
 
+  // Link a payment transaction to an order (used after auto-creating order on advance payment)
+  async linkPaymentTransactionToOrder(transactionId: string, orderId: string): Promise<void> {
+    const tx = this.paymentTransactions.find(t => t.id === transactionId);
+    if (tx) {
+      tx.orderId = orderId;
+      tx.updatedAt = new Date();
+    }
+  }
+
   // Curated offers with payment fields
   async getCuratedOffer(id: string): Promise<CuratedOffer | undefined> {
     return this.curatedOffers.find(offer => offer.id === id);
@@ -768,6 +808,37 @@ class InMemoryStorage implements IStorage {
     // Return empty array as InMemoryStorage doesn't track payouts yet
     return [];
   }
+
+  // Supplier payout info
+  async getSupplierPayoutInfo(supplierId: string): Promise<any | null> {
+    (this as any).supplierPayoutInfo = (this as any).supplierPayoutInfo || {};
+    return (this as any).supplierPayoutInfo[supplierId] || null;
+  }
+
+  async setSupplierPayoutInfo(supplierId: string, info: any): Promise<void> {
+    (this as any).supplierPayoutInfo = (this as any).supplierPayoutInfo || {};
+    (this as any).supplierPayoutInfo[supplierId] = { ...(this as any).supplierPayoutInfo[supplierId], ...info, updatedAt: new Date() };
+  }
+
+  // Production updates
+  async createProductionUpdate(orderId: string, stage: string, detail: string, updatedBy: string): Promise<any> {
+    const update = {
+      id: randomUUID(),
+      orderId,
+      stage,
+      detail,
+      updatedBy,
+      createdAt: new Date(),
+    };
+    (this as any).productionUpdates = (this as any).productionUpdates || [];
+    (this as any).productionUpdates.push(update);
+    return update;
+  }
+
+  async getProductionUpdates(orderId: string): Promise<any[]> {
+    (this as any).productionUpdates = (this as any).productionUpdates || [];
+    return (this as any).productionUpdates.filter((u: any) => u.orderId === orderId).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
 }
 
 // Database connection setup  
@@ -809,6 +880,7 @@ export interface IStorage {
   createDocument(document: InsertDocument): Promise<Document>;
   getDocumentsByCompany(companyId: string): Promise<Document[]>;
   getDocumentsByType(companyId: string, docType: string): Promise<Document[]>;
+  getInvoiceByOrder(orderId: string): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<void>;
 
   // SKU management
@@ -838,9 +910,15 @@ export interface IStorage {
   getAllOrders(): Promise<Order[]>;
   updateOrderStatus(id: string, status: string): Promise<void>;
   updateOrderTotalAmount(id: string, totalAmount: string): Promise<void>;
+  updateOrderDepositPaid(id: string, depositPaid: boolean): Promise<void>;
+  // Production updates
+  createProductionUpdate(orderId: string, stage: string, detail: string, updatedBy: string): Promise<any>;
+  getProductionUpdates(orderId: string): Promise<any[]>;
 
   // Supplier payouts
   getPayoutsBySupplier(supplierId: string): Promise<any[]>;
+  getSupplierPayoutInfo(supplierId: string): Promise<any | null>;
+  setSupplierPayoutInfo(supplierId: string, info: any): Promise<void>;
 
   // Admin-specific methods
   getAllRFQs(): Promise<RFQ[]>;
@@ -867,6 +945,11 @@ export interface IStorage {
   getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]>;
   getPaymentTransactionsByOrder(orderId: string): Promise<PaymentTransaction[]>;
   getPaymentTransactionsByOffer(curatedOfferId: string): Promise<PaymentTransaction[]>;
+  linkPaymentTransactionToOrder(transactionId: string, orderId: string): Promise<void>;
+  // Admin reporting
+  getAllPaymentTransactions(): Promise<PaymentTransaction[]>;
+  // Supplier portal helper
+  getPaymentTransactionsBySupplier(supplierId: string): Promise<PaymentTransaction[]>;
 
   // Curated offers with payment fields
   createCuratedOffer(offer: InsertCuratedOffer): Promise<CuratedOffer>;
@@ -1069,6 +1152,10 @@ export class SupabaseStorage implements IStorage {
 
   async updateOrderTotalAmount(id: string, totalAmount: string): Promise<void> {
     await db.update(orders).set({ totalAmount, updatedAt: new Date() }).where(eq(orders.id, id));
+  }
+
+  async updateOrderDepositPaid(id: string, depositPaid: boolean): Promise<void> {
+    await db.update(orders).set({ depositPaid, updatedAt: new Date() }).where(eq(orders.id, id));
   }
 
   // Admin-specific methods
@@ -1281,6 +1368,12 @@ export class SupabaseStorage implements IStorage {
     }).where(eq(paymentTransactions.id, id));
   }
 
+  async linkPaymentTransactionToOrder(transactionId: string, orderId: string): Promise<void> {
+    await db.update(paymentTransactions)
+      .set({ orderId, updatedAt: new Date() })
+      .where(eq(paymentTransactions.id, transactionId));
+  }
+
   async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
     return await db.select().from(paymentTransactions).where(eq(paymentTransactions.payerId, payerId)).orderBy(desc(paymentTransactions.createdAt));
   }
@@ -1323,6 +1416,68 @@ export class SupabaseStorage implements IStorage {
     // Return empty array as payouts are not implemented yet
     return [];
   }
+
+  // --- Additional helpers (non-critical DB features with safe fallbacks) ---
+  private static supplierPayoutInfoStore: Record<string, any> = {};
+  private static productionUpdatesStore: Array<any> = [];
+
+  async getSupplierPayoutInfo(supplierId: string): Promise<any | null> {
+    return SupabaseStorage.supplierPayoutInfoStore[supplierId] || null;
+  }
+
+  async setSupplierPayoutInfo(supplierId: string, info: any): Promise<void> {
+    SupabaseStorage.supplierPayoutInfoStore[supplierId] = {
+      ...(SupabaseStorage.supplierPayoutInfoStore[supplierId] || {}),
+      ...info,
+      updatedAt: new Date(),
+    };
+  }
+
+  async createProductionUpdate(orderId: string, stage: string, detail: string, updatedBy: string): Promise<any> {
+    const update = { id: randomUUID(), orderId, stage, detail, updatedBy, createdAt: new Date() };
+    SupabaseStorage.productionUpdatesStore.push(update);
+    return update;
+  }
+
+  async getProductionUpdates(orderId: string): Promise<any[]> {
+    return SupabaseStorage.productionUpdatesStore
+      .filter(u => u.orderId === orderId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  async getInvoiceByOrder(orderId: string): Promise<Document | undefined> {
+    // Try DB first; if schema mismatch, return undefined to let fallback storage handle
+    try {
+      const result = await db.select().from(documents).where(eq(documents.docType as any, 'invoice' as any));
+      const found = result.find((d: any) => (d.metadata as any)?.orderId === orderId);
+      return found as any;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getAllPaymentTransactions(): Promise<PaymentTransaction[]> {
+    return await db.select().from(paymentTransactions).orderBy(desc(paymentTransactions.createdAt));
+  }
+
+  async getPaymentTransactionsBySupplier(supplierId: string): Promise<PaymentTransaction[]> {
+    // Combine direct recipient payouts and transactions linked to supplier orders
+    const direct = await db
+      .select()
+      .from(paymentTransactions)
+      .where(eq(paymentTransactions.recipientId, supplierId)) as unknown as PaymentTransaction[];
+    const orderTx = await db
+      .select()
+      .from(paymentTransactions)
+      .where(isNotNull(paymentTransactions.orderId)) as unknown as PaymentTransaction[];
+    const ordersAll = await db.select().from(orders) as unknown as Order[];
+    const linked: PaymentTransaction[] = orderTx.filter((tx: PaymentTransaction) =>
+      ordersAll.some((o: Order) => o.id === tx.orderId && o.supplierId === supplierId)
+    );
+    const map = new Map<string, PaymentTransaction>();
+    [...direct, ...linked].forEach((tx: PaymentTransaction) => map.set(tx.id, tx));
+    return Array.from(map.values());
+  }
 }
 
 // Wrapper storage that falls back to in-memory when database operations fail
@@ -1340,7 +1495,8 @@ class FallbackStorage implements IStorage {
       return await operation(this.supabaseStorage);
     } catch (error) {
       console.error("Database operation failed, falling back to in-memory storage:", error);
-      this.useFallback = true;
+      // Use in-memory for THIS call only to avoid invalidating authenticated sessions
+      // that depend on DB users. We won't permanently flip to fallback here.
       return operation(this.inMemoryStorage);
     }
   }
@@ -1456,6 +1612,10 @@ class FallbackStorage implements IStorage {
 
   async updateOrderTotalAmount(id: string, totalAmount: string): Promise<void> {
     return this.withFallback(async (storage) => storage.updateOrderTotalAmount(id, totalAmount));
+  }
+
+  async updateOrderDepositPaid(id: string, depositPaid: boolean): Promise<void> {
+    return this.withFallback(async (storage) => storage.updateOrderDepositPaid(id, depositPaid));
   }
 
   async createDocument(document: InsertDocument): Promise<Document> {
@@ -1583,6 +1743,10 @@ class FallbackStorage implements IStorage {
     return this.withFallback(async (storage) => storage.updatePaymentTransactionStatus(id, status, gatewayResponse));
   }
 
+  async linkPaymentTransactionToOrder(transactionId: string, orderId: string): Promise<void> {
+    return this.withFallback(async (storage) => storage.linkPaymentTransactionToOrder(transactionId, orderId));
+  }
+
   async getPaymentTransactionsByPayer(payerId: string): Promise<PaymentTransaction[]> {
     return this.withFallback(async (storage) => storage.getPaymentTransactionsByPayer(payerId));
   }
@@ -1616,6 +1780,37 @@ class FallbackStorage implements IStorage {
 
   async getPayoutsBySupplier(supplierId: string): Promise<any[]> {
     return this.withFallback(async (storage) => storage.getPayoutsBySupplier(supplierId));
+  }
+
+  // Payment transactions admin/supplier helpers
+  async getAllPaymentTransactions(): Promise<PaymentTransaction[]> {
+    return this.withFallback(async (storage) => storage.getAllPaymentTransactions());
+  }
+
+  async getPaymentTransactionsBySupplier(supplierId: string): Promise<PaymentTransaction[]> {
+    return this.withFallback(async (storage) => storage.getPaymentTransactionsBySupplier(supplierId));
+  }
+
+  // Supplier payout info
+  async getSupplierPayoutInfo(supplierId: string): Promise<any | null> {
+    return this.withFallback(async (storage) => storage.getSupplierPayoutInfo(supplierId));
+  }
+
+  async setSupplierPayoutInfo(supplierId: string, info: any): Promise<void> {
+    return this.withFallback(async (storage) => storage.setSupplierPayoutInfo(supplierId, info));
+  }
+
+  // Production updates
+  async createProductionUpdate(orderId: string, stage: string, detail: string, updatedBy: string): Promise<any> {
+    return this.withFallback(async (storage) => storage.createProductionUpdate(orderId, stage, detail, updatedBy));
+  }
+
+  async getProductionUpdates(orderId: string): Promise<any[]> {
+    return this.withFallback(async (storage) => storage.getProductionUpdates(orderId));
+  }
+
+  async getInvoiceByOrder(orderId: string): Promise<Document | undefined> {
+    return this.withFallback(async (storage) => storage.getInvoiceByOrder(orderId));
   }
 }
 
@@ -2172,61 +2367,56 @@ async function initializeDatabase() {
   }
 }
 
-async function initializeAdminUsers() {
+export async function initializeAdminUsers() {
   if (!db) return;
   
   try {
-    // Check if admin users already exist
-    const existingAdmins = await db.select()
-      .from(users)
-      .where(eq(users.role, 'admin'))
-      .limit(1);
-    
-    if (existingAdmins.length > 0) {
-      console.log('Admin users already exist, skipping admin seeding');
-      return;
+    // Ensure admin company exists (or create it)
+    let adminCompanyRecord = await db.select().from(companies).where(eq(companies.name, 'Logicwerk Admin')).limit(1);
+    let adminCompany = adminCompanyRecord[0];
+    if (!adminCompany) {
+      adminCompany = {
+        id: randomUUID(),
+        name: 'Logicwerk Admin',
+        address: null,
+        contactInfo: null,
+        website: null,
+        businessType: null,
+        yearEstablished: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      } as any;
+      await db.insert(companies).values(adminCompany);
     }
 
-    console.log('Creating default admin users...');
-    
-    // Create admin company first
-    const adminCompany = {
-      id: randomUUID(),
-      name: 'Logicwerk Admin',
-      address: null,
-      contactInfo: null,
-      website: null,
-      businessType: null,
-      yearEstablished: null,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    
-    await db.insert(companies).values(adminCompany);
-    
-    // Create default admin user
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash('admin123', saltRounds);
-    
-    const adminUser = {
-      id: randomUUID(),
-      email: 'admin@logicwerk.com',
-      password: hashedPassword,
-      name: 'System Administrator',
-      role: 'admin' as const,
-      companyId: adminCompany.id,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    
-    await db.insert(users).values(adminUser);
-    
-    console.log('✅ Successfully created admin user:');
-    console.log('   Email: admin@logicwerk.com');
-    console.log('   Password: admin123');
-    console.log('   Role: admin');
-    
+    // Ensure admin user exists and has role 'admin'
+    const existingUserByEmail = await db.select().from(users).where(eq(users.email, 'admin@logicwerk.com')).limit(1);
+    if (existingUserByEmail.length > 0) {
+      const u = existingUserByEmail[0];
+      if (u.role !== 'admin' || u.companyId !== adminCompany.id) {
+        await db.update(users).set({ role: 'admin' as any, companyId: adminCompany.id, updatedAt: new Date() }).where(eq(users.id, u.id));
+        console.log('Updated existing admin@logicwerk.com to admin role and linked company');
+      } else {
+        console.log('admin@logicwerk.com already admin');
+      }
+    } else {
+      console.log('Creating default admin user...');
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash('admin123', saltRounds);
+      const adminUser = {
+        id: randomUUID(),
+        email: 'admin@logicwerk.com',
+        password: hashedPassword,
+        name: 'System Administrator',
+        role: 'admin' as const,
+        companyId: adminCompany.id,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      await db.insert(users).values(adminUser);
+      console.log('Default admin user created: admin@logicwerk.com / admin123');
+    }
   } catch (error) {
     console.error('Failed to initialize admin users:', error);
   }

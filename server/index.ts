@@ -1,5 +1,7 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { initializeAdminUsers } from "./storage";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -38,6 +40,12 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+  // Ensure default admin exists
+  try {
+    await initializeAdminUsers();
+  } catch (e) {
+    console.warn("Admin user initialization skipped or failed:", e);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

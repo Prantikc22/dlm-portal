@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { formatCurrency } from '@/lib/utils';
 
 export default function SupplierRFQDetail() {
   const { id } = useParams<{ id: string }>();
@@ -127,7 +128,7 @@ export default function SupplierRFQDetail() {
                     <p className="text-sm text-muted-foreground">Target Unit Price</p>
                     <p className="font-medium" data-testid="text-target-price">
                       {rfq.details?.items?.[0]?.targetUnitPrice 
-                        ? `₹${rfq.details.items[0].targetUnitPrice}`
+                        ? formatCurrency(rfq.details.items[0].targetUnitPrice)
                         : 'Not specified'}
                     </p>
                   </div>
@@ -189,7 +190,7 @@ export default function SupplierRFQDetail() {
             </Card>
 
             {/* Attached Files */}
-            {rfq.details?.attachments?.length > 0 && (
+            {(rfq.details?.attachments?.length > 0 || rfq.details?.files?.length > 0) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -199,7 +200,7 @@ export default function SupplierRFQDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {rfq.details.attachments.map((file: any, index: number) => (
+                    {(rfq.details.attachments ?? rfq.details.files).map((file: any, index: number) => (
                       <div
                         key={index}
                         className="flex items-center space-x-3 p-3 border border-border rounded-lg hover:bg-muted/50 cursor-pointer"

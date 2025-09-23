@@ -92,23 +92,21 @@ export const apiClient = {
 export const getAuthHeaders = (): Record<string, string> => {
   // First try to get JWT token
   const token = localStorage.getItem('token');
+  const headers: Record<string, string> = {};
   if (token) {
-    return {
-      'Authorization': `Bearer ${token}`,
-    };
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  
-  // Fall back to header-based auth for backward compatibility
+
+  // Also include legacy header so dev servers without JWT_SECRET still authenticate
   const user = localStorage.getItem('user');
   if (user) {
     const userData = JSON.parse(user);
     if (userData.email) {
-      return {
-        'x-user-email': userData.email,
-      };
+      headers['x-user-email'] = userData.email;
     }
   }
-  return {};
+
+  return headers;
 };
 
 export const authenticatedApiClient = {

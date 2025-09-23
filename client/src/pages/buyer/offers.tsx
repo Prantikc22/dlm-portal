@@ -27,6 +27,7 @@ interface OfferData {
   quality: string;
   features: string[];
   recommended: boolean;
+  advancePaid?: boolean;
 }
 
 export default function BuyerOffers() {
@@ -56,6 +57,7 @@ export default function BuyerOffers() {
     quality: offer.details?.qualityAssurance || 'Standard quality check',
     features: offer.details?.features || ['Quality Assured', 'On-time Delivery'],
     recommended: false,
+    advancePaid: !!offer.advancePaid,
     paymentLink: offer.paymentLink, // Include payment link from admin
   }));
 
@@ -176,12 +178,19 @@ export default function BuyerOffers() {
                     className={`relative ${offer.recommended ? 'border-primary shadow-lg' : ''}`}
                     data-testid={`card-offer-${offer.id}`}
                   >
-                    {offer.recommended && (
+                    {(offer.recommended || offer.advancePaid) && (
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                        <Badge className="bg-green-100 text-green-800">
-                          <Award className="h-3 w-3 mr-1" />
-                          Best Value
-                        </Badge>
+                        {offer.advancePaid ? (
+                          <Badge className="bg-emerald-100 text-emerald-800" title="Advance paid">
+                            <DollarSign className="h-3 w-3 mr-1" />
+                            Advance Paid
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-green-100 text-green-800">
+                            <Award className="h-3 w-3 mr-1" />
+                            Best Value
+                          </Badge>
+                        )}
                       </div>
                     )}
                     
@@ -258,10 +267,11 @@ export default function BuyerOffers() {
                           className="w-full"
                           variant={offer.recommended ? "default" : "outline"}
                           onClick={() => handleAcceptOffer(offer)}
+                          disabled={offer.advancePaid}
                           data-testid={`button-accept-offer-${offer.id}`}
                         >
                           <CreditCard className="h-4 w-4 mr-2" />
-                          Accept Offer & Pay
+                          {offer.advancePaid ? 'Advance Paid' : 'Accept Offer & Pay'}
                         </Button>
                       </div>
                     </CardContent>

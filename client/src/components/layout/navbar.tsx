@@ -39,7 +39,8 @@ export function Navbar({ onTabChange, activeTab }: NavbarProps) {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">
-              <h1 className="text-2xl font-bold text-primary">Logicwerk</h1>
+              <img src="/logo-black.png" alt="Logicwerk" className="h-7 w-auto" />
+              <span className="sr-only">Logicwerk</span>
             </div>
             {onTabChange && (
               <nav className="hidden md:flex space-x-6">

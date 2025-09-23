@@ -36,7 +36,7 @@ export default function AdminRFQDetail() {
 
   const inviteSuppliersMutation = useMutation({
     mutationFn: (supplierIds: string[]) => 
-      authenticatedApiClient.post('/api/protected/admin/invite-suppliers', {
+      authenticatedApiClient.post('/api/protected/admin/invite', {
         rfqId: id,
         supplierIds
       }),
@@ -52,7 +52,7 @@ export default function AdminRFQDetail() {
     onError: (error: any) => {
       toast({
         title: "Failed to Invite Suppliers",
-        description: error.message || "Please try again.",
+        description: (error?.response?.error || error?.message || 'Please try again.') as string,
         variant: "destructive",
       });
     },
@@ -173,7 +173,11 @@ export default function AdminRFQDetail() {
                 rfq.status === 'draft' ? 'bg-gray-100 text-gray-800' :
                 rfq.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
                 rfq.status === 'under_review' ? 'bg-yellow-100 text-yellow-800' :
-                rfq.status === 'quoted' ? 'bg-green-100 text-green-800' :
+                rfq.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                rfq.status === 'invited' ? 'bg-purple-100 text-purple-800' :
+                rfq.status === 'offers_published' ? 'bg-blue-100 text-blue-800' :
+                rfq.status === 'closed' ? 'bg-gray-200 text-gray-800' :
+                rfq.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                 'bg-gray-100 text-gray-800'
               }`}
               data-testid="badge-rfq-status"
@@ -282,8 +286,10 @@ export default function AdminRFQDetail() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="under_review">Under Review</SelectItem>
-                      <SelectItem value="quoted">Quoted</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="invited">Invited</SelectItem>
+                      <SelectItem value="offers_published">Offers Published</SelectItem>
+                      <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>

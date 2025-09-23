@@ -1,34 +1,107 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Package, Eye, Truck, Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Package, Eye, Truck, Clock, CheckCircle, AlertCircle, RefreshCw, FilePlus2, Upload, Save, CreditCard } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { authenticatedApiClient } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 const ORDER_STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
+  created: 'bg-yellow-100 text-yellow-800',
+  deposit_paid: 'bg-emerald-100 text-emerald-800',
   confirmed: 'bg-blue-100 text-blue-800',
+  production: 'bg-purple-100 text-purple-800',
   in_production: 'bg-purple-100 text-purple-800',
   quality_check: 'bg-orange-100 text-orange-800',
   shipped: 'bg-green-100 text-green-800',
   delivered: 'bg-gray-100 text-gray-800',
   cancelled: 'bg-red-100 text-red-800',
-};
+} as const;
 
 export default function AdminOrderManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [updateStage, setUpdateStage] = useState('Production Started');
+  const [updateDetail, setUpdateDetail] = useState('');
+  const [orderForDialog, setOrderForDialog] = useState<any | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['/api/protected/admin/orders'],
     queryFn: () => authenticatedApiClient.get('/api/protected/admin/orders'),
+  });
+
+  // Mutation: record advance payment
+  const recordAdvanceMutation = useMutation({
+    mutationFn: async (orderIdOrNumber: string) => {
+      return authenticatedApiClient.post(`/api/protected/admin/orders/${orderIdOrNumber}/record-advance`, {});
+    },
+    onSuccess: () => {
+      toast({ title: 'Advance Recorded', description: 'Paid amount has been registered.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/protected/admin/orders'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Failed to record advance', description: error?.message || 'Please try again.', variant: 'destructive' });
+    },
+  });
+
+  // Mutation: update order status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ orderIdOrNumber, status }: { orderIdOrNumber: string; status: string }) => {
+      return authenticatedApiClient.put(`/api/protected/admin/orders/${orderIdOrNumber}/status`, { status });
+    },
+    onSuccess: () => {
+      toast({ title: 'Status Updated' });
+      queryClient.invalidateQueries({ queryKey: ['/api/protected/admin/orders'] });
+    },
+    onError: (error: any) => toast({ title: 'Failed to update status', description: error?.message || '', variant: 'destructive' })
+  });
+
+  // Mutation: add production update
+  const addUpdateMutation = useMutation({
+    mutationFn: async ({ orderIdOrNumber, stage, detail }: { orderIdOrNumber: string; stage: string; detail: string }) => {
+      return authenticatedApiClient.post(`/api/protected/admin/orders/${orderIdOrNumber}/updates`, { stage, detail });
+    },
+    onSuccess: () => {
+      toast({ title: 'Update Added' });
+      setShowUpdateDialog(false);
+      setUpdateDetail('');
+    },
+    onError: (error: any) => toast({ title: 'Failed to add update', description: error?.message || '', variant: 'destructive' })
+  });
+
+  // Mutation: upload invoice
+  const uploadInvoiceMutation = useMutation({
+    mutationFn: async ({ orderIdOrNumber, fileName, fileData }: { orderIdOrNumber: string; fileName: string; fileData: string }) => {
+      return authenticatedApiClient.post(`/api/protected/admin/orders/${orderIdOrNumber}/invoice`, { fileName, fileData });
+    },
+    onSuccess: () => {
+      toast({ title: 'Invoice Uploaded' });
+    },
+    onError: (error: any) => toast({ title: 'Upload Failed', description: error?.message || '', variant: 'destructive' })
+  });
+
+  // Mutation: confirm order to supplier (moves to production)
+  const confirmOrderMutation = useMutation({
+    mutationFn: async (orderIdOrNumber: string) => {
+      return authenticatedApiClient.post(`/api/protected/admin/orders/${orderIdOrNumber}/confirm`, {});
+    },
+    onSuccess: () => {
+      toast({ title: 'Order Confirmed', description: 'Supplier has been notified.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/protected/admin/orders'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Confirmation Failed', description: error?.message || 'Unable to confirm order', variant: 'destructive' });
+    },
   });
 
   // Mutation to recalculate order total
@@ -210,6 +283,7 @@ export default function AdminOrderManagement() {
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Product</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Value</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left py-4 px-6 font-medium text-muted-foreground">Update</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Created</th>
                     <th className="text-left py-4 px-6 font-medium text-muted-foreground">Actions</th>
                   </tr>
@@ -253,44 +327,122 @@ export default function AdminOrderManagement() {
                         </div>
                       </td>
                       <td className="py-4 px-6">
-                        <Badge className={ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || ORDER_STATUS_COLORS.pending}>
-                          {(order.status || 'pending').replace('_', ' ').toUpperCase()}
-                        </Badge>
-                      </td>
-                      <td className="py-4 px-6 text-sm text-muted-foreground">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className={ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || ORDER_STATUS_COLORS.pending}>
+                            {(order.status || 'pending').replace('_', ' ').toUpperCase()}
+                          </Badge>
+                          <Select onValueChange={(val)=>updateStatusMutation.mutate({ orderIdOrNumber: order.orderNumber || order.id, status: val })}>
+                            <SelectTrigger className="w-36"><SelectValue placeholder="Set status"/></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="production">Production</SelectItem>
+                              <SelectItem value="inspection">Inspection</SelectItem>
+                              <SelectItem value="shipped">Shipped</SelectItem>
+                              <SelectItem value="delivered">Delivered</SelectItem>
+                              <SelectItem value="closed">Closed</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        {order.status === 'deposit_paid' && (
                           <Button
-                            variant="ghost"
+                            variant="default"
                             size="sm"
-                            data-testid={`button-view-order-${order.id}`}
+                            onClick={() => confirmOrderMutation.mutate(order.orderNumber || order.id)}
+                            disabled={confirmOrderMutation.isPending}
+                            data-testid={`button-confirm-order-${order.id}`}
+                            title="Confirm order and notify supplier"
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
+                            {confirmOrderMutation.isPending ? 'Confirming…' : 'Confirm to Supplier'}
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRecalculateOrder(order)}
-                            disabled={recalculateOrderMutation.isPending}
-                            data-testid={`button-recalculate-order-${order.id}`}
-                            title="Recalculate order total from offer details"
-                          >
-                            <RefreshCw className={`h-4 w-4 mr-1 ${recalculateOrderMutation.isPending ? 'animate-spin' : ''}`} />
-                            {recalculateOrderMutation.isPending ? 'Fixing...' : 'Fix Total'}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRecalculateOrder(order)}
+                          disabled={recalculateOrderMutation.isPending}
+                          data-testid={`button-recalculate-order-${order.id}`}
+                          title="Recalculate order total from offer details"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-1 ${recalculateOrderMutation.isPending ? 'animate-spin' : ''}`} />
+                          {recalculateOrderMutation.isPending ? 'Fixing...' : 'Fix Total'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setOrderForDialog(order); setShowUpdateDialog(true); }}
+                          data-testid={`button-add-update-${order.id}`}
+                          title="Add a production timeline update"
+                        >
+                          <FilePlus2 className="h-4 w-4 mr-1" />Add Update
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => recordAdvanceMutation.mutate(order.orderNumber || order.id)}
+                          disabled={recordAdvanceMutation.isPending}
+                          data-testid={`button-record-advance-${order.id}`}
+                          title="Record advance payment for this order"
+                        >
+                          <CreditCard className="h-4 w-4 mr-1" />
+                          {recordAdvanceMutation.isPending ? 'Recording…' : 'Record Advance'}
+                        </Button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="application/pdf,image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const base64 = String(reader.result);
+                              uploadInvoiceMutation.mutate({
+                                orderIdOrNumber: order.orderNumber || order.id,
+                                fileName: file.name,
+                                fileData: base64,
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          title="Upload Invoice"
+                          data-testid={`button-upload-invoice-${order.id}`}
+                        >
+                          <Upload className="h-4 w-4 mr-1" />Invoice
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )} 
+      </CardContent>
+    </Card>
+
+    {/* Add Update Dialog */}
+    <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Production Update - {orderForDialog?.orderNumber}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Input placeholder="Stage" value={updateStage} onChange={(e)=>setUpdateStage(e.target.value)} />
+          <Input placeholder="Detail" value={updateDetail} onChange={(e)=>setUpdateDetail(e.target.value)} />
+          <div className="flex justify-end">
+            <Button onClick={()=> orderForDialog && addUpdateMutation.mutate({ orderIdOrNumber: orderForDialog.orderNumber || orderForDialog.id, stage: updateStage, detail: updateDetail })} disabled={addUpdateMutation.isPending || !updateDetail.trim()}>
+              <Save className="h-4 w-4 mr-1"/>Save Update
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+  </div>
+);
 }

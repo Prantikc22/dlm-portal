@@ -132,6 +132,7 @@ export default function SupplierRFQs() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setLocation(`/supplier/rfq/${invite.rfq.id}`)}
                         data-testid={`button-view-details-${invite.invite.id}`}
                       >
                         View Details
@@ -222,6 +223,7 @@ export default function SupplierRFQs() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => setLocation(`/supplier/rfq/${invite.rfq.id}`)}
                           data-testid={`button-view-rfq-${invite.invite.id}`}
                         >
                           View Details

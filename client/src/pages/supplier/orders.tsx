@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { authenticatedApiClient } from '@/lib/supabase';
+import { useLocation } from 'wouter';
 
 export default function SupplierOrders() {
+  const [, setLocation] = useLocation();
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['/api/protected/orders'],
     queryFn: () => authenticatedApiClient.get('/api/protected/orders'),
@@ -138,7 +140,6 @@ export default function SupplierOrders() {
                   <tr>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order ID</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">RFQ</th>
-                    <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Total Amount</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Status</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Order Date</th>
                     <th className="text-left py-3 px-6 text-sm font-medium text-muted-foreground">Expected Delivery</th>
@@ -153,9 +154,6 @@ export default function SupplierOrders() {
                       </td>
                       <td className="py-4 px-6 text-sm" data-testid={`text-order-rfq-${order.id}`}>
                         {order.rfqId?.slice(-8) || 'N/A'}
-                      </td>
-                      <td className="py-4 px-6 text-sm font-medium" data-testid={`text-order-amount-${order.id}`}>
-                        ₹{parseFloat(order.totalAmount || '0').toLocaleString()}
                       </td>
                       <td className="py-4 px-6">
                         <Badge className={getStatusColor(order.status)}>
@@ -177,6 +175,7 @@ export default function SupplierOrders() {
                         <Button 
                           variant="ghost" 
                           size="sm" 
+                          onClick={() => setLocation(`/supplier/order/${order.id}`)}
                           data-testid={`button-view-order-${order.id}`}
                         >
                           View Details

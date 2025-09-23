@@ -43,7 +43,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">Logicwerk</CardTitle>
+          <div className="flex justify-center">
+            <img src="/logo-black.png" alt="Logicwerk" className="h-8 w-auto" />
+          </div>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>

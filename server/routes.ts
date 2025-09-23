@@ -195,6 +195,269 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Record advance payment for an order (admin action)
+  app.post("/api/protected/admin/orders/:orderId/record-advance", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const allOrders = await storage.getAllOrders();
+      const order = allOrders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      // Determine advance amount from curated offer or deposit percent
+      let advanceAmount = 0;
+      if (order.curatedOfferId) {
+        const offer = await storage.getCuratedOffer(order.curatedOfferId);
+        if (offer?.advancePaymentAmount) {
+          advanceAmount = parseFloat(String(offer.advancePaymentAmount));
+        }
+      }
+      if (advanceAmount === 0 && order.totalAmount && order.depositPercent) {
+        advanceAmount = (parseFloat(String(order.totalAmount)) * (order.depositPercent / 100));
+      }
+      if (advanceAmount <= 0) {
+        return res.status(400).json({ error: 'Unable to determine advance amount' });
+      }
+
+      // Create a completed transaction for buyer -> supplier
+      const tx = await storage.createPaymentTransaction({
+        transactionRef: `TXN_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+        orderId: order.id,
+        curatedOfferId: order.curatedOfferId || undefined,
+        payerId: order.buyerId,
+        recipientId: order.supplierId,
+        paymentMethodId: null,
+        amount: String(advanceAmount),
+        fees: '0',
+        netAmount: String(advanceAmount),
+        currency: 'INR',
+        status: 'completed',
+        transactionType: 'advance_payment',
+        gatewayTransactionId: null,
+        gatewayResponse: { source: 'admin_record' },
+        notes: 'Advance payment recorded by admin',
+        processedAt: new Date(),
+      });
+
+      // Ensure it's linked (noop if already set by create)
+      await storage.linkPaymentTransactionToOrder(tx.id, order.id);
+
+      // Mark order deposit paid
+      await storage.updateOrderDepositPaid(order.id, true);
+      await storage.updateOrderStatus(order.id, 'deposit_paid');
+
+      // Notify buyer and supplier
+      const notifyUsers = [order.buyerId, order.supplierId].filter(Boolean) as string[];
+      for (const uid of notifyUsers) {
+        await storage.createNotification({
+          userId: uid,
+          type: 'payment_received',
+          title: 'Advance Payment Recorded',
+          message: `Advance payment for order ${order.orderNumber} has been recorded.`,
+          metadata: { orderId: order.id, transactionId: tx.id },
+          entityType: 'order',
+          entityId: order.id,
+        });
+      }
+
+      res.json({ success: true, transactionId: tx.id, amount: advanceAmount });
+    } catch (error) {
+      console.error('Record advance error:', error);
+      res.status(500).json({ error: 'Failed to record advance payment' });
+    }
+  });
+
+  // Supplier payout info: supplier self-service
+  app.get("/api/protected/supplier/payout-info", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const info = await storage.getSupplierPayoutInfo(req.user!.id);
+      res.json(info || {});
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch payout info' });
+    }
+  });
+
+  app.put("/api/protected/supplier/payout-info", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { bankName, accountNumber, ifsc, upi, notes } = req.body || {};
+      await storage.setSupplierPayoutInfo(req.user!.id, { bankName, accountNumber, ifsc, upi, notes });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update payout info' });
+    }
+  });
+
+  // Admin fetches supplier payout info
+  app.get("/api/protected/admin/suppliers/:supplierId/payout-info", requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { supplierId } = req.params;
+      const info = await storage.getSupplierPayoutInfo(supplierId);
+      res.json(info || {});
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch payout info' });
+    }
+  });
+
+  // Get production updates for an order (buyer, supplier involved, or admin)
+  app.get("/api/protected/orders/:orderId/updates", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const orderId = req.params.orderId;
+      const orders = await storage.getAllOrders();
+      const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      // Access check
+      if (req.user!.role !== 'admin' && req.user!.id !== order.buyerId && req.user!.id !== order.supplierId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const updates = await storage.getProductionUpdates(order.id);
+      res.json(updates);
+    } catch (error) {
+      console.error('Fetch order updates error:', error);
+      res.status(500).json({ error: 'Failed to fetch order updates' });
+    }
+  });
+
+  // Admin creates a production update
+  app.post("/api/protected/admin/orders/:orderId/updates", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const { stage, detail } = req.body || {};
+      if (!stage || !detail) return res.status(400).json({ error: 'stage and detail required' });
+
+      const orders = await storage.getAllOrders();
+      const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      const update = await storage.createProductionUpdate(order.id, stage, detail, req.user!.id);
+
+      // Notify buyer
+      await storage.createNotification({
+        userId: order.buyerId,
+        type: 'production_update',
+        title: 'Production Update',
+        message: `${stage}: ${detail}`,
+        metadata: { orderId: order.id, stage },
+        entityType: 'order',
+        entityId: order.id,
+      });
+
+      res.json({ success: true, update });
+    } catch (error) {
+      console.error('Create production update error:', error);
+      res.status(500).json({ error: 'Failed to create production update' });
+    }
+  });
+
+  // Admin updates order status
+  app.put("/api/protected/admin/orders/:orderId/status", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const { status } = req.body || {};
+      if (!status) return res.status(400).json({ error: 'status required' });
+      const orders = await storage.getAllOrders();
+      const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      await storage.updateOrderStatus(order.id, status);
+      // Notify buyer and supplier
+      const notifyUsers = [order.buyerId, order.supplierId].filter(Boolean) as string[];
+      for (const uid of notifyUsers) {
+        await storage.createNotification({
+          userId: uid,
+          type: 'order_status_change',
+          title: 'Order Status Updated',
+          message: `Order ${order.orderNumber} status changed to ${status}`,
+          metadata: { orderId: order.id, status },
+          entityType: 'order',
+          entityId: order.id,
+        });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Update order status error:', error);
+      res.status(500).json({ error: 'Failed to update order status' });
+    }
+  });
+
+  // Admin uploads invoice for an order (synthetic storage)
+  app.post("/api/protected/admin/orders/:orderId/invoice", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const { fileName, fileData } = req.body;
+      if (!fileName || !fileData) return res.status(400).json({ error: 'fileName and fileData required' });
+      const orders = await storage.getAllOrders();
+      const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+
+      const document = await storage.createDocument({
+        companyId: null,
+        docType: 'invoice',
+        fileRef: `synthetic://invoices/${orderId}/${Date.now()}-${fileName}`,
+        metadata: { orderId: order.id, fileName, fileData },
+        uploadedBy: req.user!.id,
+      });
+      res.json({ success: true, document });
+    } catch (error) {
+      console.error('Upload invoice error:', error);
+      res.status(500).json({ error: 'Failed to upload invoice' });
+    }
+  });
+
+  // Buyer/Supplier/Admin fetch invoice
+  app.get("/api/protected/orders/:orderId/invoice", authenticateUserSmart, async (req: AuthenticatedRequest, res) => {
+    try {
+      const orderId = req.params.orderId;
+      const orders = await storage.getAllOrders();
+      const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) return res.status(404).json({ error: 'Order not found' });
+      if (req.user!.role !== 'admin' && req.user!.id !== order.buyerId && req.user!.id !== order.supplierId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const invoice = await storage.getInvoiceByOrder(order.id);
+      if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+      res.json(invoice);
+    } catch (error) {
+      console.error('Fetch invoice error:', error);
+      res.status(500).json({ error: 'Failed to fetch invoice' });
+    }
+  });
+
+  // Admin confirms an order (moves it into production and notifies supplier)
+  app.post("/api/protected/admin/orders/:orderId/confirm", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      const allOrders = await storage.getAllOrders();
+      const order = allOrders.find(o => o.id === orderId || o.orderNumber === orderId);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Set status to 'production' which represents confirmed/started
+      await storage.updateOrderStatus(order.id, 'production');
+
+      // Notify supplier if assigned
+      if (order.supplierId) {
+        await storage.createNotification({
+          userId: order.supplierId,
+          type: 'order_status_change',
+          title: 'Order Confirmed',
+          message: `Order ${order.orderNumber} has been confirmed and moved to production.`,
+          metadata: { orderId: order.id, status: 'production' },
+          entityType: 'order',
+          entityId: order.id
+        });
+      }
+
+      const updatedOrders = await storage.getAllOrders();
+      const updated = updatedOrders.find(o => o.id === order.id);
+      res.json({ success: true, order: updated });
+    } catch (error) {
+      console.error('Admin confirm order error:', error);
+      res.status(500).json({ error: 'Failed to confirm order' });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -304,12 +567,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const unitPrice = parsedOfferDetails.success ? parsedOfferDetails.data.unitPrice : 0;
           const totalPrice = unitPrice * totalQuantity;
           
+          // Determine if this buyer has already paid the advance for this offer
+          const txns = await storage.getPaymentTransactionsByOffer(offer.id);
+          const advancePaid = txns.some(tx => tx.payerId === req.user!.id && tx.status === 'completed' && tx.transactionType === 'advance_payment');
+
           return {
             ...offer,
             // Keep the unit price separate from total price
             unitPrice: unitPrice,
             totalPrice: totalPrice,
             quantity: totalQuantity,
+            advancePaid,
             // Update details to ensure consistency
             details: {
               ...offer.details,
@@ -322,11 +590,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Fallback calculation
           const unitPrice = offer.details?.unitPrice || 0;
           const fallbackQuantity = 100;
+          const txns = await storage.getPaymentTransactionsByOffer(offer.id);
+          const advancePaid = txns.some(tx => tx.payerId === req.user!.id && tx.status === 'completed' && tx.transactionType === 'advance_payment');
           return {
             ...offer,
             unitPrice: unitPrice,
             totalPrice: unitPrice * fallbackQuantity,
             quantity: fallbackQuantity,
+            advancePaid,
             details: {
               ...offer.details,
               unitPrice: unitPrice,
@@ -497,7 +768,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Status is required" });
       }
 
-      const validStatuses = ['draft', 'submitted', 'under_review', 'quoted', 'completed', 'cancelled'];
+      const validStatuses = [
+        'draft', 'submitted', 'under_review', 'invited', 'offers_published', 'accepted', 'in_production', 'inspection', 'shipped', 'delivered', 'closed', 'cancelled'
+      ];
       if (!validStatuses.includes(status)) {
         return res.status(400).json({ error: "Invalid status" });
       }
@@ -1015,8 +1288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         correctTotalAmount = offer.totalPrice.toString();
       }
 
-      // Update the order total amount directly in database
-      await storage.updateOrderTotalAmount(orderId, correctTotalAmount);
+      // Update the order total amount directly in database (use internal UUID)
+      await storage.updateOrderTotalAmount(order.id, correctTotalAmount);
       
       res.json({ 
         success: true, 
@@ -1377,11 +1650,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     return sum + (offerDetails.unitPrice * (item.quantity || 1));
                   }, 0);
                   
-                  // Only add tooling cost if explicitly set - don't add it automatically
-                  const toolingCost = offerDetails.toolingCost || 0;
-                  totalAmount = (itemsTotal + toolingCost).toString();
+                  // IMPORTANT: Do NOT add toolingCost here so that Order total matches the
+                  // buyer offer card which displays only unitPrice * quantity (e.g., ₹8,000).
+                  // If admins want tooling included, they should set curatedOffers.totalPrice.
+                  totalAmount = (itemsTotal).toString();
                   
-                  console.log(`Order calculation: unitPrice=${offerDetails.unitPrice}, items=${rfqDetails.items.length}, itemsTotal=${itemsTotal}, toolingCost=${toolingCost}, finalTotal=${totalAmount}`);
+                  console.log(`Order calculation: unitPrice=${offerDetails.unitPrice}, items=${rfqDetails.items.length}, itemsTotal=${itemsTotal}, finalTotal=${totalAmount}`);
                 } else if (offer.totalPrice) {
                   // Use the offer's total price if available
                   totalAmount = offer.totalPrice.toString();
@@ -1399,8 +1673,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   escrowTxRef: transaction.transactionRef
                 };
                 
-                await storage.createOrder(orderData);
-                console.log(`Order created for payment transaction ${transaction.id} with supplier ${supplierId} and total ${totalAmount}`);
+                const createdOrder = await storage.createOrder(orderData);
+                // Link the completed transaction to this order so payment status reflects correctly
+                await storage.linkPaymentTransactionToOrder(transaction.id, createdOrder.id);
+                console.log(`Order created for payment transaction ${transaction.id} with supplier ${supplierId} and total ${totalAmount}; linked tx -> order ${createdOrder.id}`);
               }
             }
           } else {
@@ -1506,7 +1782,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/protected/buyer/payment-transactions", requireRole(["buyer"]), async (req: AuthenticatedRequest, res) => {
     try {
       const transactions = await storage.getPaymentTransactionsByPayer(req.user!.id);
-      res.json(transactions);
+      // Optional filtering
+      const { status, type } = req.query as { status?: string; type?: string };
+      const filtered = transactions.filter(tx =>
+        (!status || tx.status === status) && (!type || tx.transactionType === type)
+      );
+      res.json(filtered);
     } catch (error) {
       console.error('Fetch buyer payment transactions error:', error);
       res.status(500).json({ error: "Failed to fetch payment transactions" });
@@ -1555,6 +1836,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Fetch offer payment transactions error:', error);
       res.status(500).json({ error: "Failed to fetch offer payment transactions" });
+    }
+  });
+
+  // Supplier payment transactions (received payouts and order-related transactions)
+  app.get("/api/protected/supplier/payment-transactions", requireRole(["supplier"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const transactions = await storage.getPaymentTransactionsBySupplier(req.user!.id);
+      const { status, type } = req.query as { status?: string; type?: string };
+      const filtered = transactions.filter(tx =>
+        (!status || tx.status === status) && (!type || tx.transactionType === type)
+      );
+      res.json(filtered);
+    } catch (error) {
+      console.error('Fetch supplier payment transactions error:', error);
+      res.status(500).json({ error: "Failed to fetch supplier payment transactions" });
+    }
+  });
+
+  // Admin payment transactions (all)
+  app.get("/api/protected/admin/payment-transactions", requireRole(["admin"]), async (_req: AuthenticatedRequest, res) => {
+    try {
+      const transactions = await storage.getAllPaymentTransactions();
+      res.json(transactions);
+    } catch (error) {
+      console.error('Fetch admin payment transactions error:', error);
+      res.status(500).json({ error: "Failed to fetch all payment transactions" });
     }
   });
 
