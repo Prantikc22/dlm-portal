@@ -195,6 +195,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Supplier: create EarlyPay request
+  app.post('/api/protected/supplier/earlypay', authenticateUserSmart, requireRole(['supplier']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { invoiceNumber, amount, currency, orderId, deliveredConfirmed, buyerInvoiceApproved, expectedDays, notes } = req.body || {};
+      if (!invoiceNumber || !amount) {
+        return res.status(400).json({ error: 'invoiceNumber and amount are required' });
+      }
+      const created = await storage.createEarlypayRequest({
+        supplierId: req.user!.id,
+        invoiceNumber,
+        amount: Number(amount),
+        currency,
+        orderId,
+        deliveredConfirmed: !!deliveredConfirmed,
+        buyerInvoiceApproved: !!buyerInvoiceApproved,
+        expectedDays: expectedDays ? Number(expectedDays) : undefined,
+        notes,
+      });
+      res.json(created);
+    } catch (e) {
+      console.error('EarlyPay create error:', e);
+      res.status(500).json({ error: 'Failed to create EarlyPay request' });
+    }
+  });
+
+  // Supplier: list own EarlyPay requests
+  app.get('/api/protected/supplier/earlypay', authenticateUserSmart, requireRole(['supplier']), async (req: AuthenticatedRequest, res) => {
+    try {
+      const list = await storage.getEarlypayRequestsBySupplier(req.user!.id);
+      res.json(list);
+    } catch (e) {
+      console.error('EarlyPay list (supplier) error:', e);
+      res.status(500).json({ error: 'Failed to fetch EarlyPay requests' });
+    }
+  });
+
+  // Admin: list all EarlyPay requests with supplier info
+  app.get('/api/protected/admin/earlypay', authenticateUserSmart, requireRole(['admin']), async (_req: AuthenticatedRequest, res) => {
+    try {
+      const list = await storage.getAllEarlypayRequests();
+      const withSupplier = await Promise.all(list.map(async (r) => {
+        const supplier = await storage.getUser(r.supplierId);
+        return { ...r, supplier: supplier ? { id: supplier.id, name: supplier.name, email: supplier.email } : null };
+      }));
+      res.json(withSupplier);
+    } catch (e) {
+      console.error('EarlyPay list (admin) error:', e);
+      res.status(500).json({ error: 'Failed to fetch EarlyPay requests' });
+    }
+  });
+
+  // Buyer Logistics: submit logistics request
+  app.post("/api/protected/logistics", authenticateUserSmart, requireRole(["buyer"]), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { source, destination, weightKg, size, insuranceRequired, notes, pickupDate } = req.body || {};
+      if (!source || !destination || !weightKg || !size) {
+        return res.status(400).json({ error: "source, destination, weightKg, size are required" });
+      }
+      const request = await storage.createLogisticsRequest({
+        buyerId: req.user!.id,
+        source,
+        destination,
+        weightKg: Number(weightKg),
+        size,
+        insuranceRequired: !!insuranceRequired,
+        notes,
+        pickupDate: pickupDate ? new Date(pickupDate) : undefined,
+      });
+      res.json({ success: true, request });
+    } catch (error) {
+      console.error('Logistics request create error:', error);
+      res.status(500).json({ error: 'Failed to submit logistics request' });
+    }
+  });
+
+  // Admin: list logistics requests
+  app.get("/api/protected/admin/logistics", authenticateUserSmart, requireRole(["admin"]), async (_req: AuthenticatedRequest, res) => {
+    try {
+      const list = await storage.getAllLogisticsRequests();
+      const withBuyer = await Promise.all(list.map(async (r) => {
+        const buyer = await storage.getUser(r.buyerId);
+        return { ...r, buyer: buyer ? { id: buyer.id, name: buyer.name, email: buyer.email } : null };
+      }));
+      res.json(withBuyer);
+    } catch (error) {
+      console.error('Logistics list fetch error:', error);
+      res.status(500).json({ error: 'Failed to fetch logistics requests' });
+    }
+  });
+
   // Record advance payment for an order (admin action)
   app.post("/api/protected/admin/orders/:orderId/record-advance", authenticateUserSmart, requireRole(["admin"]), async (req: AuthenticatedRequest, res) => {
     try {

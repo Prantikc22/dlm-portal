@@ -57,6 +57,37 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Supplier EarlyPay requests
+export const earlypayStatusEnum = pgEnum('earlypay_status', ['requested','approved','rejected','paid']);
+export const earlypayRequests = pgTable('earlypay_requests', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  supplierId: uuid('supplier_id').references(() => users.id).notNull(),
+  orderId: uuid('order_id').references(() => orders.id),
+  invoiceNumber: text('invoice_number').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  currency: text('currency').default('INR'),
+  deliveredConfirmed: boolean('delivered_confirmed').default(false),
+  buyerInvoiceApproved: boolean('buyer_invoice_approved').default(false),
+  expectedDays: numeric('expected_days', { precision: 3, scale: 0 }).default('5' as any),
+  notes: text('notes'),
+  status: earlypayStatusEnum('status').default('requested').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Buyer logistics requests
+export const logisticsRequests = pgTable("logistics_requests", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  buyerId: uuid("buyer_id").references(() => users.id).notNull(),
+  source: text("source").notNull(),
+  destination: text("destination").notNull(),
+  weightKg: numeric("weight_kg", { precision: 12, scale: 2 }).notNull(),
+  size: text("size").notNull(),
+  insuranceRequired: boolean("insurance_required").default(false),
+  notes: text("notes"),
+  pickupDate: timestamp("pickup_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const companies = pgTable("companies", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -362,6 +393,8 @@ export type Notification = typeof notifications.$inferSelect;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type PaymentConfiguration = typeof paymentConfigurations.$inferSelect;
 export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
+export type LogisticsRequest = typeof logisticsRequests.$inferSelect;
+export type EarlypayRequest = typeof earlypayRequests.$inferSelect;
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
@@ -394,6 +427,18 @@ export const insertPaymentTransactionSchema = createInsertSchema(paymentTransact
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertLogisticsRequestSchema = createInsertSchema(logisticsRequests).omit({
+  id: true,
+  pickupDate: false as any,
+  createdAt: true,
+});
+
+export const insertEarlypayRequestSchema = createInsertSchema(earlypayRequests).omit({
+  id: true,
+  status: true,
+  createdAt: true,
 });
 
 // Type definitions for offer details and related structures

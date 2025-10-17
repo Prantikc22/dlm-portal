@@ -99,3 +99,43 @@ export const PACKAGING_TYPES = [
   { value: 'custom_printed', label: 'Custom Printed' },
   { value: 'protective_foam', label: 'Protective Foam' },
 ];
+
+// Add-ons: Metal finishing options
+export const FINISHING_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'anodizing', label: 'Anodizing' },
+  { value: 'powder_coating', label: 'Powder Coating' },
+  { value: 'plating_nickel', label: 'Plating - Nickel' },
+  { value: 'plating_chrome', label: 'Plating - Chrome' },
+  { value: 'plating_zinc', label: 'Plating - Zinc' },
+];
+
+// Add-ons: Heat treatment options
+export const HEAT_TREATMENT_TYPES = [
+  { value: 'none', label: 'None' },
+  { value: 'case_hardening', label: 'Case Hardening' },
+  { value: 'nitriding', label: 'Nitriding' },
+  { value: 'tempering', label: 'Tempering' },
+  { value: 'normalizing', label: 'Normalizing' },
+  { value: 'annealing', label: 'Annealing' },
+];
+
+// Add-ons: Compliance/Certification options
+export const CERTIFICATION_TYPES = [
+  { value: 'none', label: 'None' },
+  { value: 'ppap', label: 'PPAP' },
+  { value: 'cmm_report', label: 'CMM Report' },
+  { value: 'ce', label: 'CE' },
+  { value: 'rohs', label: 'RoHS' },
+  { value: 'reach', label: 'REACH' },
+  { value: 'coa', label: 'Custom COA' },
+];
+
+// Add-ons: Component sourcing & kitting
+export const SOURCING_PACKAGING_OPTIONS = [
+  { value: 'reels', label: 'Reels' },
+  { value: 'cut_tape', label: 'Cut Tape' },
+  { value: 'trays', label: 'Trays' },
+  { value: 'bags', label: 'Bags' },
+  { value: 'kits', label: 'Kits' },
+];

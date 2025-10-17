@@ -17,6 +17,7 @@ import BuyerRFQDetail from "@/pages/buyer/rfq-detail";
 import BuyerOffers from "@/pages/buyer/offers";
 import BuyerOrders from "@/pages/buyer/orders";
 import BuyerPayments from "@/pages/buyer/payments";
+import BuyerLogisticsPage from "@/pages/buyer/logistics";
 import BuyerOrderDetail from "@/pages/buyer/order-detail";
 import BuyerSupport from "@/pages/buyer/support";
 import SupplierDashboard from "@/pages/supplier/dashboard";
@@ -28,6 +29,7 @@ import SupplierOrders from "@/pages/supplier/orders";
 import SupplierOrderDetail from "@/pages/supplier/order-detail";
 import SupplierPayouts from "@/pages/supplier/payouts";
 import SupplierPayments from "@/pages/supplier/payments";
+import SupplierEarlyPayPage from "@/pages/supplier/earlypay";
 import SupplierSupport from "@/pages/supplier/support";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminRFQManagement from "@/pages/admin/rfq-management";
@@ -37,6 +39,8 @@ import AdminOfferComposer from "@/pages/admin/offer-composer";
 import AdminOrderManagement from "@/pages/admin/order-management";
 import AdminPaymentConfig from "@/pages/admin/payment-config";
 import AdminPayments from "@/pages/admin/payments";
+import AdminLogisticsPage from "./pages/admin/logistics";
+import AdminEarlyPayPage from "@/pages/admin/earlypay";
 import AdminSupport from "@/pages/admin/support";
 import NotFound from "@/pages/not-found";
 
@@ -60,6 +64,7 @@ function DashboardLayout() {
     { icon: 'fas fa-file-alt', label: 'My RFQs', href: '/buyer/rfqs', active: currentPath === '/buyer/rfqs' },
     { icon: 'fas fa-handshake', label: 'Offers', href: '/buyer/offers', active: currentPath === '/buyer/offers' },
     { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/buyer/orders', active: currentPath === '/buyer/orders' },
+    { icon: 'fas fa-truck', label: 'Logistics', href: '/buyer/logistics', active: currentPath === '/buyer/logistics' },
     { icon: 'fas fa-credit-card', label: 'Payments', href: '/buyer/payments', active: currentPath === '/buyer/payments' },
     { icon: 'fas fa-headset', label: 'Support', href: '/buyer/support', active: currentPath === '/buyer/support' },
   ];
@@ -70,6 +75,7 @@ function DashboardLayout() {
     { icon: 'fas fa-quote-right', label: 'My Quotes', href: '/supplier/quotes', active: currentPath === '/supplier/quotes' },
     { icon: 'fas fa-shopping-cart', label: 'Orders', href: '/supplier/orders', active: currentPath === '/supplier/orders' },
     { icon: 'fas fa-credit-card', label: 'Payments', href: '/supplier/payments', active: currentPath === '/supplier/payments' },
+    { icon: 'fas fa-bolt', label: 'EarlyPay', href: '/supplier/earlypay', active: currentPath === '/supplier/earlypay' },
     { icon: 'fas fa-money-bill-wave', label: 'Payouts', href: '/supplier/payouts', active: currentPath === '/supplier/payouts' },
     { icon: 'fas fa-headset', label: 'Support', href: '/supplier/support', active: currentPath === '/supplier/support' },
     { icon: 'fas fa-user-cog', label: 'Profile', href: '/supplier/onboarding', active: currentPath === '/supplier/onboarding' },
@@ -81,6 +87,8 @@ function DashboardLayout() {
     { icon: 'fas fa-users', label: 'Supplier Management', href: '/admin/suppliers', active: currentPath === '/admin/suppliers' },
     { icon: 'fas fa-handshake', label: 'Offer Composer', href: '/admin/offers', active: currentPath === '/admin/offers' },
     { icon: 'fas fa-shopping-cart', label: 'Order Management', href: '/admin/orders', active: currentPath === '/admin/orders' },
+    { icon: 'fas fa-truck', label: 'Logistics', href: '/admin/logistics', active: currentPath === '/admin/logistics' },
+    { icon: 'fas fa-bolt', label: 'EarlyPay', href: '/admin/earlypay', active: currentPath === '/admin/earlypay' },
     { icon: 'fas fa-credit-card', label: 'Payments', href: '/admin/payments', active: currentPath === '/admin/payments' },
     { icon: 'fas fa-tools', label: 'Payment Configuration', href: '/admin/payment-config', active: currentPath === '/admin/payment-config' },
     { icon: 'fas fa-headset', label: 'Support', href: '/admin/support', active: currentPath === '/admin/support' },
@@ -117,6 +125,7 @@ function DashboardLayout() {
             <Route path="/buyer/orders" component={BuyerOrders} />
             <Route path="/buyer/order/:id" component={BuyerOrderDetail} />
             <Route path="/buyer/payments" component={BuyerPayments} />
+            <Route path="/buyer/logistics" component={BuyerLogisticsPage} />
             <Route path="/buyer/support" component={BuyerSupport} />
             
             {/* Supplier Routes */}
@@ -127,6 +136,7 @@ function DashboardLayout() {
             <Route path="/supplier/rfq/:id" component={SupplierRFQDetail} />
             <Route path="/supplier/orders" component={SupplierOrders} />
             <Route path="/supplier/order/:id" component={SupplierOrderDetail} />
+            <Route path="/supplier/earlypay" component={SupplierEarlyPayPage} />
             <Route path="/supplier/payouts" component={SupplierPayouts} />
             <Route path="/supplier/payments" component={SupplierPayments} />
             <Route path="/supplier/support" component={SupplierSupport} />
@@ -139,6 +149,8 @@ function DashboardLayout() {
             <Route path="/admin/offers" component={AdminOfferComposer} />
             <Route path="/admin/orders" component={AdminOrderManagement} />
             <Route path="/admin/payments" component={AdminPayments} />
+            <Route path="/admin/logistics" component={AdminLogisticsPage} />
+            <Route path="/admin/earlypay" component={AdminEarlyPayPage} />
             <Route path="/admin/payment-config" component={AdminPaymentConfig} />
             <Route path="/admin/support" component={AdminSupport} />
             

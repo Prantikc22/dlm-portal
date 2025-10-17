@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { SKU } from '@shared/schema';
-import { UNITS, PRIORITIES, TOLERANCES, SURFACE_FINISHES, INSPECTION_TYPES, PACKAGING_TYPES } from '@/lib/constants';
+import { UNITS, PRIORITIES, TOLERANCES, SURFACE_FINISHES, INSPECTION_TYPES, PACKAGING_TYPES, FINISHING_OPTIONS, HEAT_TREATMENT_TYPES, CERTIFICATION_TYPES, SOURCING_PACKAGING_OPTIONS } from '@/lib/constants';
 import { Upload, X } from 'lucide-react';
 
 const rfqItemSchema = z.object({
@@ -35,6 +35,12 @@ const rfqItemSchema = z.object({
   sampleDeadline: z.string().optional(),
   inspection: z.string(),
   packaging: z.string(),
+  // Add-ons
+  finishing: z.string().optional(),
+  heatTreatment: z.string().optional(),
+  certification: z.string().optional(),
+  sourcingPackaging: z.string().optional(),
+  sourcingNotes: z.string().optional(),
   targetUnitPrice: z.number().optional(),
   budgetMin: z.number().optional(),
   budgetMax: z.number().optional(),
@@ -77,6 +83,10 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
       termsAccepted: false,
       inspection: 'basic',
       packaging: 'standard',
+      finishing: 'none',
+      heatTreatment: 'none',
+      certification: 'none',
+      sourcingPackaging: 'reels',
       surfaceFinish: [],
       files: [],
     },
@@ -353,6 +363,7 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                       </FormItem>
                     )}
                   />
+
                 </>
               )}
 
@@ -665,6 +676,123 @@ export function Configurator({ selectedSKU, onSubmit, onBack }: ConfiguratorProp
                             ))}
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="finishing"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Metal Finishing</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-finishing">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {FINISHING_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="heatTreatment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Heat Treatment</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-heat-treatment">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {HEAT_TREATMENT_TYPES.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="certification"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Inspection & Certification</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-certification">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CERTIFICATION_TYPES.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sourcingPackaging"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Component Sourcing & Kitting Packaging</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-sourcing-packaging">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SOURCING_PACKAGING_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="sourcingNotes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sourcing Notes (BOM, vendors, alternates)</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Provide BOM summary, approved vendors, alternates, etc."
+                            {...field}
+                            data-testid="textarea-sourcing-notes"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -10,7 +10,9 @@ import {
   type PaymentMethod, type PaymentConfiguration, type PaymentTransaction,
   type InsertUser, type InsertCompany, type InsertSupplierProfile, 
   type InsertRFQ, type InsertQuote, type InsertDocument, type InsertCuratedOffer, type InsertNotification,
-  type InsertPaymentMethod, type InsertPaymentConfiguration, type InsertPaymentTransaction
+  type InsertPaymentMethod, type InsertPaymentConfiguration, type InsertPaymentTransaction,
+  logisticsRequests, type LogisticsRequest,
+  earlypayRequests, type EarlypayRequest
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
@@ -26,6 +28,8 @@ class InMemoryStorage implements IStorage {
   private paymentMethods: PaymentMethod[] = [];
   private paymentConfigurations: PaymentConfiguration[] = [];
   private paymentTransactions: PaymentTransaction[] = [];
+  private logisticsRequests: LogisticsRequest[] = [];
+  private earlypayRequests: EarlypayRequest[] = [];
   private skus: SKU[] = [
     // Mechanical Manufacturing Industry
     {
@@ -144,6 +148,98 @@ class InMemoryStorage implements IStorage {
         material: ["PE", "PP", "PET", "Aluminum Foil"],
         type: ["Stand-up Pouch", "Flat Pouch", "Roll Film"],
         printing: ["Gravure", "Flexographic", "Digital"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_BLOW_001",
+      industry: "packaging_printing",
+      processName: "Blow Molding - PET/HDPE Bottles & Jars",
+      description: "PET/HDPE bottles and jars for beverages, personal care, and household products",
+      defaultMoq: 10000,
+      defaultLeadTimeDays: 14,
+      parametersSchema: {
+        material: ["PET", "HDPE"],
+        capacity: ["50ml", "100ml", "250ml", "500ml", "1L"],
+        neckFinish: ["18/410", "20/410", "24/410", "28/410"],
+        color: ["Clear", "White", "Amber", "Custom"],
+        decoration: ["Label", "Shrink Sleeve", "Screen Print"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_TRAY_THERMO_001",
+      industry: "packaging_printing",
+      processName: "Thermoformed Trays - Clamshells & Blister Bases",
+      description: "Custom thermoformed clamshells, trays, and blister bases for FMCG and cosmetics",
+      defaultMoq: 5000,
+      defaultLeadTimeDays: 12,
+      parametersSchema: {
+        material: ["PET", "RPET", "PVC", "HIPS"],
+        thickness: ["0.2mm", "0.3mm", "0.5mm", "0.8mm"],
+        style: ["Clamshell", "Tray", "Blister Base"],
+        cavityCount: ["Single", "2", "4", "6", "Custom"],
+        sealing: ["Heat Seal", "Snap Fit"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_PULP_001",
+      industry: "packaging_printing",
+      processName: "Molded Pulp Trays - Plastic-free Protection",
+      description: "Eco-friendly molded fiber trays for electronics, cosmetics, and protective packaging",
+      defaultMoq: 3000,
+      defaultLeadTimeDays: 15,
+      parametersSchema: {
+        fiber: ["Recycled Pulp", "Bagasse", "Bamboo"],
+        color: ["Natural", "Black", "Dyed"],
+        finish: ["Raw", "Hot-Pressed"],
+        waterResistance: ["None", "Light", "High"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_CLOSURES_001",
+      industry: "packaging_printing",
+      processName: "Closures, Caps & Pumps",
+      description: "Pumps, misters, droppers, flip-tops and specialty caps as separate line items",
+      defaultMoq: 5000,
+      defaultLeadTimeDays: 10,
+      parametersSchema: {
+        type: ["Pump", "Mister", "Dropper", "Flip-Top", "Screw Cap"],
+        neckFinish: ["18/410", "20/410", "24/410", "28/410"],
+        color: ["White", "Black", "Natural", "Custom"],
+        locking: ["With Lock", "Without Lock"]
+      },
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: randomUUID(),
+      code: "PACK_SLEEVES_001",
+      industry: "packaging_printing",
+      processName: "Shrink Sleeves - 360° Decoration",
+      description: "Standalone shrink sleeve decoration for bottles, jars, and containers",
+      defaultMoq: 10000,
+      defaultLeadTimeDays: 14,
+      parametersSchema: {
+        material: ["PETG", "PVC"],
+        print: ["Gravure", "Flexo", "Digital"],
+        finish: ["Matte", "Gloss"],
+        perforation: ["Vertical", "Horizontal", "None"]
       },
       active: true,
       createdAt: new Date(),
@@ -839,6 +935,56 @@ class InMemoryStorage implements IStorage {
     (this as any).productionUpdates = (this as any).productionUpdates || [];
     return (this as any).productionUpdates.filter((u: any) => u.orderId === orderId).sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
+
+  // Logistics requests
+  async createLogisticsRequest(data: { buyerId: string; source: string; destination: string; weightKg: number; size: string; insuranceRequired?: boolean; notes?: string; pickupDate?: Date }): Promise<LogisticsRequest> {
+    const request: LogisticsRequest = {
+      id: randomUUID(),
+      buyerId: data.buyerId,
+      source: data.source,
+      destination: data.destination,
+      weightKg: data.weightKg as any,
+      size: data.size,
+      insuranceRequired: !!data.insuranceRequired,
+      notes: data.notes || null as any,
+      pickupDate: (data.pickupDate ? new Date(data.pickupDate) : null) as any,
+      createdAt: new Date(),
+    } as any;
+    this.logisticsRequests.push(request);
+    return request;
+  }
+
+  async getAllLogisticsRequests(): Promise<LogisticsRequest[]> {
+    return this.logisticsRequests.sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+  }
+
+  // EarlyPay
+  async createEarlypayRequest(data: { supplierId: string; invoiceNumber: string; amount: number; currency?: string; orderId?: string | null; deliveredConfirmed: boolean; buyerInvoiceApproved: boolean; expectedDays?: number; notes?: string }): Promise<EarlypayRequest> {
+    const req: EarlypayRequest = {
+      id: randomUUID(),
+      supplierId: data.supplierId,
+      orderId: (data.orderId || null) as any,
+      invoiceNumber: data.invoiceNumber,
+      amount: data.amount as any,
+      currency: (data.currency || 'INR') as any,
+      deliveredConfirmed: !!data.deliveredConfirmed,
+      buyerInvoiceApproved: !!data.buyerInvoiceApproved,
+      expectedDays: (data.expectedDays ?? 5) as any,
+      notes: (data.notes || null) as any,
+      status: 'requested' as any,
+      createdAt: new Date(),
+    } as any;
+    this.earlypayRequests.push(req);
+    return req;
+  }
+
+  async getEarlypayRequestsBySupplier(supplierId: string): Promise<EarlypayRequest[]> {
+    return this.earlypayRequests.filter(r => r.supplierId === supplierId).sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+  }
+
+  async getAllEarlypayRequests(): Promise<EarlypayRequest[]> {
+    return this.earlypayRequests.sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+  }
 }
 
 // Database connection setup  
@@ -980,6 +1126,15 @@ export interface IStorage {
   getUnreadNotificationCount(userId: string): Promise<number>;
   markNotificationAsRead(notificationId: string): Promise<void>;
   markAllNotificationsAsRead(userId: string): Promise<void>;
+
+  // Logistics
+  createLogisticsRequest(data: { buyerId: string; source: string; destination: string; weightKg: number; size: string; insuranceRequired?: boolean; notes?: string; pickupDate?: Date }): Promise<LogisticsRequest>;
+  getAllLogisticsRequests(): Promise<LogisticsRequest[]>;
+
+  // EarlyPay
+  createEarlypayRequest(data: { supplierId: string; invoiceNumber: string; amount: number; currency?: string; orderId?: string | null; deliveredConfirmed: boolean; buyerInvoiceApproved: boolean; expectedDays?: number; notes?: string }): Promise<EarlypayRequest>;
+  getEarlypayRequestsBySupplier(supplierId: string): Promise<EarlypayRequest[]>;
+  getAllEarlypayRequests(): Promise<EarlypayRequest[]>;
 }
 
 export class SupabaseStorage implements IStorage {
@@ -1417,6 +1572,52 @@ export class SupabaseStorage implements IStorage {
     return [];
   }
 
+  // Logistics
+  async createLogisticsRequest(data: { buyerId: string; source: string; destination: string; weightKg: number; size: string; insuranceRequired?: boolean; notes?: string; pickupDate?: Date }): Promise<LogisticsRequest> {
+    const result = await db.insert(logisticsRequests).values({
+      buyerId: data.buyerId,
+      source: data.source,
+      destination: data.destination,
+      weightKg: data.weightKg as any,
+      size: data.size,
+      insuranceRequired: !!data.insuranceRequired,
+      notes: data.notes || null,
+      pickupDate: data.pickupDate ? new Date(data.pickupDate) : null,
+    }).returning();
+    return result[0] as LogisticsRequest;
+  }
+
+  async getAllLogisticsRequests(): Promise<LogisticsRequest[]> {
+    const result = await db.select().from(logisticsRequests).orderBy(desc(logisticsRequests.createdAt as any));
+    return result as LogisticsRequest[];
+  }
+
+  // EarlyPay
+  async createEarlypayRequest(data: { supplierId: string; invoiceNumber: string; amount: number; currency?: string; orderId?: string | null; deliveredConfirmed: boolean; buyerInvoiceApproved: boolean; expectedDays?: number; notes?: string }): Promise<EarlypayRequest> {
+    const result = await db.insert(earlypayRequests).values({
+      supplierId: data.supplierId,
+      orderId: (data.orderId || null) as any,
+      invoiceNumber: data.invoiceNumber,
+      amount: data.amount as any,
+      currency: (data.currency || 'INR') as any,
+      deliveredConfirmed: !!data.deliveredConfirmed,
+      buyerInvoiceApproved: !!data.buyerInvoiceApproved,
+      expectedDays: (data.expectedDays ?? 5) as any,
+      notes: data.notes || null,
+    }).returning();
+    return result[0] as EarlypayRequest;
+  }
+
+  async getEarlypayRequestsBySupplier(supplierId: string): Promise<EarlypayRequest[]> {
+    const result = await db.select().from(earlypayRequests).where(eq(earlypayRequests.supplierId, supplierId)).orderBy(desc(earlypayRequests.createdAt as any));
+    return result as EarlypayRequest[];
+  }
+
+  async getAllEarlypayRequests(): Promise<EarlypayRequest[]> {
+    const result = await db.select().from(earlypayRequests).orderBy(desc(earlypayRequests.createdAt as any));
+    return result as EarlypayRequest[];
+  }
+
   // --- Additional helpers (non-critical DB features with safe fallbacks) ---
   private static supplierPayoutInfoStore: Record<string, any> = {};
   private static productionUpdatesStore: Array<any> = [];
@@ -1686,6 +1887,26 @@ class FallbackStorage implements IStorage {
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {
     return this.withFallback(async (storage) => storage.markAllNotificationsAsRead(userId));
+  }
+
+  async createLogisticsRequest(data: { buyerId: string; source: string; destination: string; weightKg: number; size: string; insuranceRequired?: boolean; notes?: string; pickupDate?: Date }) {
+    return this.withFallback(async (storage) => storage.createLogisticsRequest(data));
+  }
+
+  async getAllLogisticsRequests() {
+    return this.withFallback(async (storage) => storage.getAllLogisticsRequests());
+  }
+
+  async createEarlypayRequest(data: { supplierId: string; invoiceNumber: string; amount: number; currency?: string; orderId?: string | null; deliveredConfirmed: boolean; buyerInvoiceApproved: boolean; expectedDays?: number; notes?: string }) {
+    return this.withFallback(async (storage) => storage.createEarlypayRequest(data));
+  }
+
+  async getEarlypayRequestsBySupplier(supplierId: string) {
+    return this.withFallback(async (storage) => storage.getEarlypayRequestsBySupplier(supplierId));
+  }
+
+  async getAllEarlypayRequests() {
+    return this.withFallback(async (storage) => storage.getAllEarlypayRequests());
   }
 
   // Payment methods
@@ -2149,6 +2370,146 @@ const COMPREHENSIVE_SKU_DATA = [
       materials: ['PLA', 'Starch-based', 'Bagasse', 'Paper'],
       certifications: ['Compostable', 'Biodegradable', 'Food contact safe'],
       applications: ['Food packaging', 'Retail', 'E-commerce']
+    }
+  },
+  {
+    code: 'blow_molding',
+    industry: 'packaging_printing',
+    processName: 'Blow Molding - PET/HDPE Bottles & Jars',
+    description: 'PET/HDPE bottles & jars (rigid packaging process buyers search for)',
+    defaultMoq: 10000,
+    defaultLeadTimeDays: 14,
+    parametersSchema: {
+      required: ['material', 'capacity', 'neck_finish'],
+      optional: ['color', 'decoration'],
+      material: ['PET', 'HDPE'],
+      capacity: ['50ml', '100ml', '250ml', '500ml', '1L'],
+      neck_finish: ['18/410', '20/410', '24/410', '28/410'],
+      color: ['Clear', 'White', 'Amber', 'Custom'],
+      decoration: ['Label', 'Shrink Sleeve', 'Screen Print']
+    }
+  },
+  {
+    code: 'thermoformed_trays',
+    industry: 'packaging_printing',
+    processName: 'Thermoformed Trays - Clamshells & Blister Bases',
+    description: 'Clamshells, food/cosmetic trays, blister bases',
+    defaultMoq: 5000,
+    defaultLeadTimeDays: 12,
+    parametersSchema: {
+      required: ['material', 'thickness', 'style'],
+      optional: ['cavity_count', 'sealing'],
+      material: ['PET', 'RPET', 'PVC', 'HIPS'],
+      thickness: ['0.2mm', '0.3mm', '0.5mm', '0.8mm'],
+      style: ['Clamshell', 'Tray', 'Blister Base'],
+      cavity_count: ['Single', '2', '4', '6', 'Custom'],
+      sealing: ['Heat Seal', 'Snap Fit']
+    }
+  },
+  {
+    code: 'molded_pulp_trays',
+    industry: 'packaging_printing',
+    processName: 'Molded Pulp Trays - Plastic-free Protection',
+    description: 'Eco protective trays for electronics/cosmetics (plastic-free)',
+    defaultMoq: 3000,
+    defaultLeadTimeDays: 15,
+    parametersSchema: {
+      required: ['fiber', 'finish'],
+      optional: ['color', 'water_resistance'],
+      fiber: ['Recycled Pulp', 'Bagasse', 'Bamboo'],
+      color: ['Natural', 'Black', 'Dyed'],
+      finish: ['Raw', 'Hot-Pressed'],
+      water_resistance: ['None', 'Light', 'High']
+    }
+  },
+  {
+    code: 'closures_caps_pumps',
+    industry: 'packaging_printing',
+    processName: 'Closures, Caps & Pumps',
+    description: 'Pumps, misters, droppers, flip-tops as separate line item',
+    defaultMoq: 5000,
+    defaultLeadTimeDays: 10,
+    parametersSchema: {
+      required: ['type', 'neck_finish'],
+      optional: ['color', 'locking'],
+      type: ['Pump', 'Mister', 'Dropper', 'Flip-Top', 'Screw Cap'],
+      neck_finish: ['18/410', '20/410', '24/410', '28/410'],
+      color: ['White', 'Black', 'Natural', 'Custom'],
+      locking: ['With Lock', 'Without Lock']
+    }
+  },
+  {
+    code: 'shrink_sleeves',
+    industry: 'packaging_printing',
+    processName: 'Shrink Sleeves - 360° Decoration',
+    description: 'Standalone 360° decoration for bottles, jars, containers',
+    defaultMoq: 10000,
+    defaultLeadTimeDays: 14,
+    parametersSchema: {
+      required: ['material', 'print'],
+      optional: ['finish', 'perforation'],
+      material: ['PETG', 'PVC'],
+      print: ['Gravure', 'Flexo', 'Digital'],
+      finish: ['Matte', 'Gloss'],
+      perforation: ['Vertical', 'Horizontal', 'None']
+    }
+  },
+
+  // Add-ons & Services (4 SKUs)
+  {
+    code: 'metal_finishing',
+    industry: 'addons',
+    processName: 'Metal Finishing - Anodizing, Powder Coating, Plating',
+    description: 'Standalone finishing services frequently sourced separately',
+    defaultMoq: 50,
+    defaultLeadTimeDays: 7,
+    parametersSchema: {
+      required: ['finishing_type', 'substrate', 'color_or_spec'],
+      optional: ['thickness', 'masking', 'salt_spray_hours'],
+      finishing_types: ['Anodizing', 'Powder coating', 'Plating (Ni/Cr/Zn)'],
+      substrates: ['Aluminum', 'Steel', 'Stainless steel', 'Zinc'],
+      colors: ['Clear', 'Black', 'Natural', 'RAL/Pantone']
+    }
+  },
+  {
+    code: 'heat_treatment_services',
+    industry: 'addons',
+    processName: 'Heat Treatment Services - Case Hardening, Nitriding, Tempering',
+    description: 'Standalone heat treatment RFQs for manufactured parts',
+    defaultMoq: 20,
+    defaultLeadTimeDays: 7,
+    parametersSchema: {
+      required: ['treatment_type', 'material_grade', 'hardness_spec'],
+      optional: ['case_depth', 'distortion_control', 'certification'],
+      treatment_types: ['Case hardening', 'Nitriding', 'Tempering', 'Normalizing', 'Annealing'],
+      hardness_scale: ['HRC', 'HBW', 'HV']
+    }
+  },
+  {
+    code: 'qc_inspection_certification',
+    industry: 'addons',
+    processName: 'QC, Inspection & Certification - PPAP, CMM, CE/RoHS/REACH',
+    description: 'Charge for compliance deliverables without exposing suppliers',
+    defaultMoq: 1,
+    defaultLeadTimeDays: 5,
+    parametersSchema: {
+      required: ['documentation_type'],
+      optional: ['sample_size', 'report_format', 'standard'],
+      documentation_types: ['PPAP', 'CMM report', 'CE', 'RoHS', 'REACH', 'Custom COA'],
+      standards: ['ISO', 'IEC', 'ASTM', 'DIN']
+    }
+  },
+  {
+    code: 'component_sourcing_kitting',
+    industry: 'addons',
+    processName: 'Component Sourcing & Kitting (Electronics/Assemblies)',
+    description: 'BOM procurement and kitting; keeps supplier hidden and boosts margin',
+    defaultMoq: 1,
+    defaultLeadTimeDays: 10,
+    parametersSchema: {
+      required: ['bom_items', 'target_lead_time'],
+      optional: ['approved_vendors', 'alternates_allowed', 'packaging'],
+      packaging: ['Reels', 'Cut tape', 'Trays', 'Bags', 'Kits']
     }
   },
 
